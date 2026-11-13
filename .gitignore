@@ -1,0 +1,9 @@
+node_modules/
+dist/
+out-test/
+*.vsix
+.relay/
+.crosstalk/
+# Private planning notes: kept on this computer, never published
+docs/internal/
+.DS_Store

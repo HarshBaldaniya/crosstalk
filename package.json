@@ -1,0 +1,294 @@
+{
+  "name": "crosstalk",
+  "displayName": "Crosstalk",
+  "description": "See every Claude Code, Codex and Gemini CLI chat in one place, and let them share what they did. A map of your code for agents, ready-made commands, and your plan limits.",
+  "version": "0.0.1",
+  "publisher": "crosstalk-dev",
+  "author": {
+    "name": "Harsh Baldaniya"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HarshBaldaniya/crosstalk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HarshBaldaniya/crosstalk/issues"
+  },
+  "homepage": "https://github.com/HarshBaldaniya/crosstalk#readme",
+  "icon": "media/icon.png",
+  "galleryBanner": {
+    "color": "#1a1a1d",
+    "theme": "dark"
+  },
+  "keywords": [
+    "claude code",
+    "codex",
+    "gemini cli",
+    "ai agents",
+    "mcp",
+    "code map",
+    "chat history",
+    "context",
+    "tokens"
+  ],
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "private": true,
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Crosstalk",
+      "properties": {
+        "crosstalk.contextSize": {
+          "type": "string",
+          "enum": [
+            "compact",
+            "standard",
+            "full"
+          ],
+          "enumDescriptions": [
+            "About 2k tokens of the conversation on connecting",
+            "About 6k tokens of the conversation on connecting",
+            "About 15k tokens of the conversation on connecting"
+          ],
+          "default": "standard",
+          "description": "How much of a chat's conversation another chat gets when the two are connected. The rest is always in its flightlog, which the other chat can read."
+        },
+        "crosstalk.autoDeliver": {
+          "type": "boolean",
+          "default": false,
+          "description": "When a connected chat finishes a reply, give it the updates that arrived while it worked right away. That costs it an extra turn (and its tokens) just to read them. Off (the default): updates wait for its next message, at no extra cost."
+        },
+        "crosstalk.codeMap.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keep a code map of each open folder, so AI chats can find code in a few hundred tokens instead of searching and opening files. Built by a parser on this computer (no AI), kept in ~/.crosstalk/codemap, about 1 MB for a large repo."
+        },
+        "crosstalk.backupFolder": {
+          "type": "string",
+          "default": "",
+          "description": "A folder to back up the session logs and your own commands to, every half hour (for example a folder in iCloud Drive, OneDrive or Dropbox). Empty: no backup. The code map isn't backed up; it's rebuilt from the code in seconds."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "crosstalk",
+          "title": "Crosstalk",
+          "icon": "media/crosstalk-mark.svg"
+        }
+      ]
+    },
+    "views": {
+      "crosstalk": [
+        {
+          "type": "webview",
+          "id": "crosstalk.chats",
+          "name": "Chats"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "crosstalk.refresh",
+        "title": "Crosstalk: Refresh chats",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "crosstalk.openBoard",
+        "title": "Crosstalk: Open the Tower",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "crosstalk.openUsage",
+        "title": "Crosstalk: Fuel (tokens and plan limits)",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "crosstalk.newChat",
+        "title": "Crosstalk: New Claude chat",
+        "icon": "$(add)"
+      },
+      {
+        "command": "crosstalk.connect",
+        "title": "Crosstalk: Turn on auto-sharing (adds a hook to Claude Code)"
+      },
+      {
+        "command": "crosstalk.disconnect",
+        "title": "Crosstalk: Turn off auto-sharing (removes Crosstalk's hook)"
+      },
+      {
+        "command": "crosstalk.rebuildCodeMap",
+        "title": "Crosstalk: Read the code again for the map"
+      },
+      {
+        "command": "crosstalk.setUpToolkit",
+        "title": "Crosstalk: Set up my agents (map, commands, flightlogs)"
+      },
+      {
+        "command": "crosstalk.removeToolkit",
+        "title": "Crosstalk: Remove the toolkit from my agents"
+      },
+      {
+        "command": "crosstalk.backUp",
+        "title": "Crosstalk: Back up session logs now"
+      },
+      {
+        "command": "crosstalk.restore",
+        "title": "Crosstalk: Restore session logs from a backup"
+      },
+      {
+        "command": "crosstalk.moduleDocs",
+        "title": "Crosstalk: Module docs (draft, review, approve)"
+      },
+      {
+        "command": "crosstalk.openCode",
+        "title": "Crosstalk: Open the map"
+      },
+      {
+        "command": "crosstalk.openLibrary",
+        "title": "Crosstalk: Open commands"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "crosstalk.newChat",
+          "when": "view == crosstalk.chats",
+          "group": "navigation@1"
+        },
+        {
+          "command": "crosstalk.openBoard",
+          "when": "view == crosstalk.chats",
+          "group": "navigation@2"
+        },
+        {
+          "command": "crosstalk.openUsage",
+          "when": "view == crosstalk.chats",
+          "group": "open@1"
+        },
+        {
+          "command": "crosstalk.openCode",
+          "when": "view == crosstalk.chats",
+          "group": "open@2"
+        },
+        {
+          "command": "crosstalk.openLibrary",
+          "when": "view == crosstalk.chats",
+          "group": "open@3"
+        },
+        {
+          "command": "crosstalk.refresh",
+          "when": "view == crosstalk.chats",
+          "group": "zrefresh@1"
+        }
+      ]
+    },
+    "walkthroughs": [
+      {
+        "id": "crosstalk.start",
+        "title": "Get started with Crosstalk",
+        "description": "See every agent chat in one place and let them share what they did.",
+        "steps": [
+          {
+            "id": "tower",
+            "title": "Open the Tower",
+            "description": "Every Claude Code, Codex and Gemini CLI chat in this folder, as a card.\n[Open the Tower](command:crosstalk.openBoard)",
+            "media": {
+              "markdown": "media/walkthrough/tower.md"
+            },
+            "completionEvents": [
+              "onCommand:crosstalk.openBoard"
+            ]
+          },
+          {
+            "id": "sharing",
+            "title": "Turn on auto-sharing",
+            "description": "Connected chats get each other's updates with their next message. A backup of each agent's settings is made first.\n[Turn on auto-sharing](command:crosstalk.connect)",
+            "media": {
+              "markdown": "media/walkthrough/sharing.md"
+            },
+            "completionEvents": [
+              "onCommand:crosstalk.connect"
+            ]
+          },
+          {
+            "id": "connect",
+            "title": "Connect two chats",
+            "description": "On the Tower, drag one card onto another. Click the line between them to choose how much it shares.\n[Open the Tower](command:crosstalk.openBoard)",
+            "media": {
+              "markdown": "media/walkthrough/connect.md"
+            },
+            "completionEvents": [
+              "onCommand:crosstalk.openBoard"
+            ]
+          },
+          {
+            "id": "agents",
+            "title": "Give your agents the map and commands",
+            "description": "Three small tools and ready-made commands for Claude Code, Codex and Gemini CLI.\n[Set up my agents](command:crosstalk.setUpToolkit)",
+            "media": {
+              "markdown": "media/walkthrough/agents.md"
+            },
+            "completionEvents": [
+              "onCommand:crosstalk.setUpToolkit"
+            ]
+          },
+          {
+            "id": "fuel",
+            "title": "See your plan limits",
+            "description": "How much of each agent's plan is used, and when it resets.\n[Open Fuel](command:crosstalk.openUsage)",
+            "media": {
+              "markdown": "media/walkthrough/fuel.md"
+            },
+            "completionEvents": [
+              "onCommand:crosstalk.openUsage"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node -e \"require('fs').rmSync('out-test',{recursive:true,force:true})\" && node esbuild.mjs --tests && node --test \"out-test/*.test.js\"",
+    "package": "npm run build && vsce package --no-dependencies",
+    "install:vscode": "npm run build && vsce package --no-dependencies && node scripts/install-vscode.mjs",
+    "bench:map": "esbuild scripts/codemap-bench.ts --bundle --platform=node --format=cjs --outfile=out-test/codemap-bench.js --log-level=warning && node out-test/codemap-bench.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.322",
+    "@lobehub/icons-static-svg": "^1.102.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@vscode/tree-sitter-wasm": "^0.3.1",
+    "@xyflow/react": "^12.12.1",
+    "d3-force": "^3.0.0",
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "simple-icons": "^16.37.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/d3-force": "^3.0.10",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}
