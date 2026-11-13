@@ -9,7 +9,12 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE">MIT License</a> · VS Code 1.95+ · macOS, Windows, Linux
+  <a href="https://github.com/HarshBaldaniya/crosstalk/actions/workflows/test.yml"><img src="https://github.com/HarshBaldaniya/crosstalk/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
+
+<p align="center">
+  VS Code 1.95+ · macOS, Windows, Linux
 </p>
 
 ![The Tower: every chat as a card, with channels between them](docs/images/tower.png)
