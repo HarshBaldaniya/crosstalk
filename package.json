@@ -121,7 +121,7 @@
       },
       {
         "command": "crosstalk.connect",
-        "title": "Crosstalk: Turn on auto-sharing (adds a hook to Claude Code)"
+        "title": "Crosstalk: Turn on auto-sharing (adds a hook to your agents)"
       },
       {
         "command": "crosstalk.disconnect",
