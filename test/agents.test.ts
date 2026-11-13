@@ -194,7 +194,8 @@ test("a hook whose node is gone, or that can fail, is found for repair; the new 
   connect('"/no/such/node" "/h/.crosstalk/crosstalk-hook.js" codex', codex().file, codex().events, 5);
   assert.ok(staleHookTargets().some((t) => t.tool === "Codex"));
   const cmd = hookCommandFor(process.execPath, "Codex");
-  assert.ok(cmd.endsWith(" codex || true"));
+  // Windows' shell has no `|| true`; there the command simply ends with the tool.
+  assert.ok(cmd.endsWith(process.platform === "win32" ? " codex" : " codex || true"));
   connect(cmd, codex().file, codex().events, 5);
   assert.deepEqual(staleHookTargets().map((t) => t.tool).filter((t) => t === "Codex"), []);
   delete process.env.CODEX_HOME;

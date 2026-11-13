@@ -1,0 +1,4 @@
+# Line endings stay LF everywhere, so files and tests read the same on Windows.
+* text=auto eol=lf
+*.png binary
+*.wasm binary

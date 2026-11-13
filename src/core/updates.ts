@@ -178,8 +178,10 @@ export function fullPath(file: string, root?: string): string {
   return path.isAbsolute(file) || !root ? file : path.resolve(root, file);
 }
 
+/** A file inside the folder as the folder sees it, always with "/" (on Windows too), so notes read
+ *  the same on every computer and agents can open the path as written. */
 export function relativeTo(file: string, root?: string): string {
   if (!root) return file;
   const rel = path.relative(root, file);
-  return rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? rel : file;
+  return rel && !rel.startsWith("..") && !path.isAbsolute(rel) ? rel.split(path.sep).join("/") : file;
 }

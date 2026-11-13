@@ -19,6 +19,8 @@ function repo(): string {
   git("init", "-q", "-b", "main");
   git("config", "user.email", "t@example.com");
   git("config", "user.name", "T");
+  // Windows' git turns \n into \r\n on checkout by default; the test compares exact text.
+  git("config", "core.autocrlf", "false");
   fs.writeFileSync(path.join(root, "app.ts"), "export const a = 1;\n");
   git("add", ".");
   git("commit", "-q", "-m", "first");

@@ -80,7 +80,8 @@ test("codex: rollouts in this folder are listed and read; usage comes from the r
 test("gemini: chats for this folder's hash are listed, read and counted", async () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "crosstalk-gemini-"));
   process.env.CROSSTALK_GEMINI_TMP = tmpDir;
-  const root = "/work/app";
+  // The folder as Gemini CLI sees it: on Windows "/work/app" is "D:\work\app", and that is what it hashes.
+  const root = path.resolve("/work/app");
   const chats = path.join(tmpDir, createHash("sha256").update(root).digest("hex"), "chats");
   fs.mkdirSync(chats, { recursive: true });
   const day = new Date().toISOString();
@@ -91,7 +92,7 @@ test("gemini: chats for this folder's hash are listed, read and counted", async 
       startTime: day,
       messages: [
         { id: "1", timestamp: day, type: "user", content: "Write the README" },
-        { id: "2", timestamp: day, type: "gemini", content: "Done.", tokens: { input: 500, output: 40, cached: 200, thoughts: 10 }, toolCalls: [{ name: "write_file", args: { file_path: "/work/app/README.md" } }] },
+        { id: "2", timestamp: day, type: "gemini", content: "Done.", tokens: { input: 500, output: 40, cached: 200, thoughts: 10 }, toolCalls: [{ name: "write_file", args: { file_path: path.join(root, "README.md") } }] },
       ],
     }),
   );
@@ -101,7 +102,7 @@ test("gemini: chats for this folder's hash are listed, read and counted", async 
   assert.equal(list[0].title, "Write the README");
   const d = await g.read(list[0]);
   assert.deepEqual(d.messages.map((m) => m.who), ["you", "ai"]);
-  assert.deepEqual(d.filesChanged, ["/work/app/README.md"]);
+  assert.deepEqual(d.filesChanged, [path.join(root, "README.md")]);
   assert.deepEqual(g.usage(list[0])?.today, { input: 300, output: 50, cacheRead: 200, cacheWrite: 0 });
   assert.equal(g.end(list[0]), 2);
   assert.equal(g.since(list[0], 1).messages[0].text, "Done.");
