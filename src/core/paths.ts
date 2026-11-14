@@ -1,10 +1,30 @@
+import * as crypto from "node:crypto";
 import * as os from "node:os";
 import * as path from "node:path";
 import * as fs from "node:fs";
 
 /** Crosstalk's own folder: the hook, the MCP server, connections, inboxes and live status. */
 export function crosstalkHome(): string {
-  return process.env.CROSSTALK_HOME || path.join(os.homedir(), ".crosstalk");
+  const home = process.env.CROSSTALK_HOME || path.join(os.homedir(), ".crosstalk");
+  if (!locked.has(home)) {
+    locked.add(home);
+    lockDown(home);
+  }
+  return home;
+}
+
+const locked = new Set<string>();
+
+/** Flightlogs and inboxes hold what people typed to their agents, so the folder is the person's
+ *  alone (0700): other accounts on the computer can't list or read anything inside it. */
+function lockDown(dir: string): void {
+  if (process.platform === "win32") return; // A Windows profile folder is already private to its user.
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    if ((fs.statSync(dir).mode & 0o077) !== 0) fs.chmodSync(dir, 0o700);
+  } catch {
+    // A read-only home: nothing will be written there either.
+  }
 }
 
 export function crosstalkFile(...parts: string[]): string {
@@ -82,12 +102,35 @@ export function guardRealHome(file: string): void {
   }
 }
 
+/**
+ * Replaces a file in one step, so a crash never leaves half of it. The file keeps its own
+ * permissions (a 0600 ~/.claude.json stays 0600), a new file is the person's alone (0600), and a
+ * dotfile that is a symlink is written where it points instead of being replaced by a copy. The
+ * temporary file has a name nobody can guess and is never opened if something is already there.
+ */
 export function writeFileAtomic(file: string, text: string): void {
   guardRealHome(file);
+  try {
+    file = fs.realpathSync(file);
+  } catch {
+    // A new file.
+  }
+  let mode: number | undefined;
+  try {
+    mode = fs.statSync(file).mode & 0o777;
+  } catch {
+    // A new file: private.
+  }
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
-  fs.writeFileSync(tmp, text);
-  fs.renameSync(tmp, file);
+  const tmp = `${file}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`;
+  try {
+    fs.writeFileSync(tmp, text, { mode: mode ?? 0o600, flag: "wx" });
+    if (mode !== undefined && process.platform !== "win32") fs.chmodSync(tmp, mode);
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    throw err;
+  }
 }
 
 export function readJson<T>(file: string, fallback: T): T {

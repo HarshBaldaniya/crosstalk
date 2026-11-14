@@ -6,7 +6,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
-import { crosstalkHome, guardRealHome } from "./paths";
+import { crosstalkHome, guardRealHome, writeFileAtomic } from "./paths";
 
 export const HOOK_EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Notification", "Stop", "SessionEnd"] as const;
 const MARK = "crosstalk-hook.js";
@@ -119,8 +119,7 @@ export function connect(command: string, file = claudeSettingsPath(), events: re
     hooks[event] = kept;
   }
   settings.hooks = hooks;
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  fs.writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`);
+  writeFileAtomic(file, `${JSON.stringify(settings, null, 2)}\n`);
 }
 
 export function disconnect(file = claudeSettingsPath()): void {
@@ -135,8 +134,7 @@ export function disconnect(file = claudeSettingsPath()): void {
     else delete settings.hooks[event];
   }
   if (!Object.keys(settings.hooks).length) delete settings.hooks;
-  guardRealHome(file);
-  fs.writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`);
+  writeFileAtomic(file, `${JSON.stringify(settings, null, 2)}\n`);
 }
 
 

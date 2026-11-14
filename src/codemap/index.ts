@@ -194,7 +194,9 @@ export class CodeMap {
       const abs = path.join(this.root, p);
       let st: fs.Stats;
       try {
-        st = fs.statSync(abs);
+        // lstat: a symlink in a repo can point anywhere (~/.aws/credentials), and the map would then
+        // show its lines to agents. Linked files are left out; their target is mapped where it lives.
+        st = fs.lstatSync(abs);
       } catch {
         if (this.files.delete(p)) removed++;
         continue;

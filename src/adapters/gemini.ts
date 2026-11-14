@@ -13,7 +13,7 @@ import * as path from "node:path";
 import { createHash } from "node:crypto";
 import type { ChatDigest, ChatMessage, ChatSession, ChatStats, Usage } from "../core/types";
 import { NO_USAGE, contextWindow } from "../core/types";
-import { geminiTmpDir } from "../core/paths";
+import { geminiTmpDir, safeId } from "../core/paths";
 import { addUsage, cleanText } from "../core/transcript";
 import type { Adapter } from "./adapter";
 import { today } from "./adapter";
@@ -73,7 +73,8 @@ export class GeminiAdapter implements Adapter {
       if (out.length >= limit) break;
       const chat = this.load(file, mtime);
       // A chat moved from .json to .jsonl keeps its id: list the newer file only.
-      if (!chat?.sessionId || seen.has(chat.sessionId)) continue;
+      // The id is typed into a terminal to resume the chat (gemini --resume <id>): only plain ids.
+      if (!chat?.sessionId || !safeId(chat.sessionId) || seen.has(chat.sessionId)) continue;
       seen.add(chat.sessionId);
       const first = geminiMessages(chat.messages ?? []).messages.find((m) => m.who === "you");
       const title = first ? oneLine(first.text).slice(0, 90) || "Gemini chat" : "Gemini chat";

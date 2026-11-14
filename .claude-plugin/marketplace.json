@@ -6,7 +6,7 @@
     {
       "name": "crosstalk",
       "source": "./",
-      "description": "Find code through a map of the project, recall what earlier chats did, and catch up on other chats. No AI of its own; nothing leaves your computer.",
+      "description": "Find code through a map of the project, recall what earlier chats did, and catch up on other chats. No AI of its own, no server, no telemetry.",
       "category": "development",
       "tags": ["code-map", "mcp", "skills"]
     }

@@ -100,16 +100,25 @@ export function leaseConflicts(leases: string[], root: string, runs = listRuns(r
 
 // ---------------------------------------------------------------- the agents' own commands
 
-/** The agent's headless command. None of them may skip permissions: edits only, inside the worktree. */
-export function agentCommand(agent: RunAgent, task: string, opts: { worktree: string; lastMessageFile: string; maxUsd?: number }): { cmd: string; args: string[] } {
+/** The agent's headless command. None of them may skip permissions: edits only, inside the worktree.
+ *  The task never goes on the command line: it is written to the agent's stdin. On Windows the
+ *  agents are .cmd files that start through cmd.exe, which would run any `&` or `|` in a task (and
+ *  an automation's task holds text from CI logs and other chats). Every argument here is fixed. */
+export function agentCommand(agent: RunAgent, task: string, opts: { worktree: string; lastMessageFile: string; maxUsd?: number }): { cmd: string; args: string[]; stdin: string } {
   if (agent === "claude") {
-    const args = ["-p", task, "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"];
-    if (opts.maxUsd) args.push("--max-budget-usd", String(opts.maxUsd));
-    return { cmd: "claude", args };
+    // `claude -p` with no prompt argument reads the prompt from stdin.
+    const args = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", "acceptEdits"];
+    if (opts.maxUsd) args.push("--max-budget-usd", String(Number(opts.maxUsd) || 0));
+    return { cmd: "claude", args, stdin: task };
   }
-  if (agent === "codex") return { cmd: "codex", args: ["exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check", "-C", opts.worktree, "-o", opts.lastMessageFile, task] };
-  return { cmd: "gemini", args: ["-p", task, "--approval-mode", "auto_edit", "-o", "stream-json"] };
+  // `-` tells codex exec to read the prompt from stdin.
+  if (agent === "codex") return { cmd: "codex", args: ["exec", "--json", "--sandbox", "workspace-write", "--skip-git-repo-check", "-C", opts.worktree, "-o", opts.lastMessageFile, "-"], stdin: task };
+  // Gemini CLI runs one prompt from stdin when stdin is not a terminal.
+  return { cmd: "gemini", args: ["--approval-mode", "auto_edit", "-o", "stream-json"], stdin: task };
 }
+
+/** Quotes an argument for cmd.exe, for the .cmd agents Windows can only start through a shell. */
+const cmdQuote = (a: string) => (/[\s"&|<>^%()!]/.test(a) ? `"${a.replace(/"/g, '""')}"` : a);
 
 /** Tokens and the final words from a line of the agent's JSON output, whatever its shape. */
 export function readEvent(line: string): { tokens?: number; usd?: number; text?: string; final?: boolean; failed?: boolean } | undefined {
@@ -222,15 +231,23 @@ export async function startRun(o: StartOptions, deps: RunDeps = {}): Promise<Run
   logRun(id, `started by ${run.trigger} · ${o.agent} · budget ${run.budget.tokens} tokens, ${run.budget.minutes} min · leases ${run.leases.join(", ") || "none"} · task: ${o.task}`);
 
   const lastMessageFile = path.join(runsDir(), `${id}.last.txt`);
-  const { cmd, args } = agentCommand(o.agent, o.task, { worktree, lastMessageFile });
+  const { cmd, args, stdin } = agentCommand(o.agent, o.task, { worktree, lastMessageFile });
   const resolved = deps.resolve?.(o.agent) ?? cmd;
-  // stdin is closed: an agent left waiting for more input (Codex does) would sit until its time ran out.
-  const child = (deps.start ?? ((c, a, cwd) => spawn(c, a, { cwd, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], shell: process.platform === "win32" && /\.(cmd|bat)$/i.test(c), env: { ...process.env, CROSSTALK_RUN: id } })))(resolved, args, worktree);
+  const viaShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(resolved);
+  const child = (
+    deps.start ??
+    ((c, a, cwd) =>
+      spawn(viaShell ? cmdQuote(c) : c, viaShell ? a.map(cmdQuote) : a, { cwd, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], shell: viaShell, env: { ...process.env, CROSSTALK_RUN: id } }))
+  )(resolved, args, worktree);
+  // The task goes in through stdin, which then closes: an agent waiting for more input (Codex
+  // does) would otherwise sit until its time ran out.
+  child.stdin?.on("error", () => undefined);
+  child.stdin?.end(stdin);
   live.set(id, child);
   run.pid = child.pid;
   saveRun(run);
   deps.onChange?.(run);
-  logRun(id, `command: ${path.basename(resolved)} ${args.map((a) => (a === o.task ? "<task>" : a)).join(" ")}`);
+  logRun(id, `command: ${path.basename(resolved)} ${args.join(" ")} (task on stdin)`);
 
   const startedAt = Date.now();
   let lastText = "";

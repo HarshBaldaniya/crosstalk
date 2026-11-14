@@ -15,16 +15,18 @@ export function backupDirFor(folder: string): string {
   return path.join(folder, "crosstalk-backup", machine());
 }
 
-function walk(src: string, fn: (rel: string, full: string, st: fs.Stats) => void, rel = "") {
+/** Every plain file under `src`. Links are not followed (a backup folder others can write to could
+ *  hold one pointing anywhere, or a loop), and it goes at most 8 folders deep. */
+function walk(src: string, fn: (rel: string, full: string, st: fs.Stats) => void, rel = "", depth = 0) {
   let st: fs.Stats;
   try {
-    st = fs.statSync(src);
+    st = fs.lstatSync(src);
   } catch {
     return;
   }
   if (st.isFile()) return fn(rel, src, st);
-  if (!st.isDirectory()) return;
-  for (const name of fs.readdirSync(src)) walk(path.join(src, name), fn, rel ? path.join(rel, name) : name);
+  if (!st.isDirectory() || depth > 8) return;
+  for (const name of fs.readdirSync(src)) walk(path.join(src, name), fn, rel ? path.join(rel, name) : name, depth + 1);
 }
 
 /** Copies every new or changed file to `<folder>/crosstalk-backup/<this computer>/`. */
@@ -62,7 +64,7 @@ export function restore(folder: string): { restored: number; from: string[] } {
   const root = path.join(folder, "crosstalk-backup");
   let machines: string[] = [];
   try {
-    machines = fs.readdirSync(root).filter((m) => fs.statSync(path.join(root, m)).isDirectory());
+    machines = fs.readdirSync(root).filter((m) => fs.lstatSync(path.join(root, m)).isDirectory());
   } catch {
     return { restored: 0, from: [] };
   }

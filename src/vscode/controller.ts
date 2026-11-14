@@ -589,6 +589,12 @@ export class Controller implements vscode.Disposable {
         continue;
       }
       if (a.end(s) === cursor || now - s.lastModified < QUIET_MS) continue;
+      // Hundreds of MB since the bookmark (sharing was off for long): skip ahead rather than read it
+      // all on the extension host, which would freeze every extension. The flightlog has it.
+      if (s.file && toolOf(s.tool) !== "gemini" && a.end(s) - cursor > HOOK_STEP_MAX) {
+        setCursor(id, a.end(s));
+        continue;
+      }
       const words = conns.some((c) => c.level === "full") || !s.file ? a.since(s, cursor) : undefined;
       const read = s.file ? readAsksFrom(toolOf(s.tool), s.file, cursor, 1) : undefined;
       setCursor(id, words?.next ?? read!.next);
@@ -783,7 +789,12 @@ export class Controller implements vscode.Disposable {
         case "fullscreen":
           return this.fullscreen();
         case "autoCompactOn":
-          setClaudeAutoCompact(true);
+          try {
+            setClaudeAutoCompact(true);
+          } catch {
+            this.toast("Claude Code's settings were busy, so nothing changed. Try again in a moment.", "warn", from, { title: "Auto-compact not changed", icon: "info" });
+            return;
+          }
           this.toast("Claude compacts chats by itself when they fill up", "ok", from, { title: "Auto-compact on", icon: "info" });
           return this.refresh();
         case "askBranch":
@@ -1633,8 +1644,12 @@ function claudeAutoCompact(): boolean {
 /** Switches Claude Code's own auto-compact setting (one key in ~/.claude.json; nothing else is touched). */
 function setClaudeAutoCompact(on: boolean): void {
   const file = path.join(os.homedir(), ".claude.json");
-  const cfg = readJson<Record<string, unknown>>(file, {});
+  // Read strictly: if the file doesn't parse (Claude Code mid-write), throw and leave it alone rather
+  // than replace the person's whole Claude Code state with one key.
+  const cfg = fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>) : {};
+  if (!cfg || typeof cfg !== "object" || Array.isArray(cfg)) throw new Error("unreadable");
+  if (fs.existsSync(file)) fs.copyFileSync(file, `${file}.crosstalk-last`);
   cfg.autoCompactEnabled = on;
-  writeFileAtomic(file, JSON.stringify(cfg, null, 2));
+  writeFileAtomic(file, `${JSON.stringify(cfg, null, 2)}\n`);
 }
 

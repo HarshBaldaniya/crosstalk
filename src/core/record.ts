@@ -5,11 +5,12 @@
 //
 //   ~/.crosstalk/sessions/<id>.json    where the record has read up to, and what the chat is
 //   ~/.crosstalk/sessions/<id>.jsonl   one line per ask, appended
+import { redact } from "./redact";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { codexMessages } from "../adapters/codex";
 import { geminiMessages, loadGeminiChat } from "../adapters/gemini";
-import { readJson, crosstalkFile, safeId, writeFileAtomic } from "./paths";
+import { claudeProjectsDir, codexSessionsDir, crosstalkFile, geminiTmpDir, readJson, safeId, writeFileAtomic } from "./paths";
 import { claudeMessages, fileSize, readLinesFrom } from "./transcript";
 import { fullPath, relativeTo } from "./updates";
 import type { ChatMessage, Tool } from "./types";
@@ -296,14 +297,14 @@ function toAsk(e: Exchange, n: number): RecordAsk {
   const ask: RecordAsk = {
     n,
     at: e.at,
-    ask: clipAsk(e.ask),
-    did: firstParagraph(e.last || e.reply),
+    ask: redact(clipAsk(e.ask)),
+    did: redact(firstParagraph(e.last || e.reply)),
     files: [...e.files],
     refs: [...refs].slice(0, REFS_MAX),
     src: [e.start, e.end],
   };
   const open = openItem(e.last || e.reply);
-  if (open && open !== ask.did) ask.open = open;
+  if (open && open !== ask.did) ask.open = redact(open);
   return ask;
 }
 
@@ -428,10 +429,33 @@ function readRange(file: string, start: number, end: number): string {
 }
 
 /** The exact words of one recorded ask, read again from the agent's own file. */
+/** A chat file inside Claude Code's, Codex's or Gemini CLI's own folders (after following links):
+ *  ~/.claude, ~/.codex (sessions and archived ones) or ~/.gemini, wherever each is configured. */
+export function isAgentChatFile(file: string | undefined): boolean {
+  if (!file) return false;
+  let real: string;
+  try {
+    real = fs.realpathSync(file);
+  } catch {
+    return false;
+  }
+  return [claudeProjectsDir(), codexSessionsDir(), geminiTmpDir()].map((d) => path.dirname(d)).some((d) => {
+    let base = d;
+    try {
+      base = fs.realpathSync(d);
+    } catch {
+      // Not there: nothing can be inside it.
+    }
+    return real.startsWith(base + path.sep);
+  });
+}
+
 export function exchangeText(id: string, n: number, max = 20_000): string | undefined {
   const head = readHead(id);
   const ask = readAsks(id).find((a) => a.n === n);
-  if (!head || !ask) return undefined;
+  // A flightlog restored from a shared backup folder names its chat file: read it only when that
+  // really is an agent's chat file on this computer, never any other path.
+  if (!head || !ask || !isAgentChatFile(head.file)) return undefined;
   const [start, end] = ask.src;
   let messages: ChatMessage[];
   if (head.tool === "gemini") {
@@ -440,7 +464,7 @@ export function exchangeText(id: string, n: number, max = 20_000): string | unde
     const lines = readRange(head.file, start, end).split("\n");
     messages = (head.tool === "codex" ? codexMessages(lines) : claudeMessages(lines)).messages;
   }
-  const text = messages.map((m) => `**${m.who === "you" ? "You" : toolName(head.tool)}:** ${m.text.trim()}`).join("\n\n");
+  const text = redact(messages.map((m) => `**${m.who === "you" ? "You" : toolName(head.tool)}:** ${m.text.trim()}`).join("\n\n"));
   return text.length > max ? `${text.slice(0, max)}\n\n… (${(text.length - max).toLocaleString("en-US")} more characters)` : text;
 }
 

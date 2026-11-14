@@ -36,9 +36,14 @@ export const codexPromptsDir = () => path.join(codexHome(), "prompts");
 export const geminiSettingsPath = () => path.join(geminiHome(), "settings.json");
 const MANIFEST = ".crosstalk-manifest";
 
+/** Two copies before Crosstalk changes an agent's settings: the file as it was the first time
+ *  (.crosstalk-backup, kept for good) and as it was just before this change (.crosstalk-last). */
 function backup(file: string) {
-  const b = `${file}.crosstalk-backup`;
-  if (fs.existsSync(file) && !fs.existsSync(b)) fs.copyFileSync(file, b);
+  if (!fs.existsSync(file)) return;
+  guardRealHome(file);
+  const first = `${file}.crosstalk-backup`;
+  if (!fs.existsSync(first)) fs.copyFileSync(file, first);
+  fs.copyFileSync(file, `${file}.crosstalk-last`);
 }
 
 function readJsonFile<T>(file: string): T | undefined {
@@ -108,8 +113,11 @@ async function addToClaude(node: string, claudeCli: string | undefined, run: Run
 /** Changes Claude Code's user-scope MCP servers in ~/.claude.json, keeping everything else in it. */
 function editClaudeJson(change: (servers: Record<string, unknown>) => void): void {
   const file = claudeJsonPath();
-  const data = readJsonFile<Record<string, unknown> & { mcpServers?: Record<string, unknown> }>(file) ?? {};
-  if (fs.existsSync(file)) backup(file);
+  // A file that doesn't read as JSON (Claude Code halfway through writing it) is left alone: writing
+  // a fresh one would lose the person's projects, servers and sign-in state.
+  const data = fs.existsSync(file) ? readJsonFile<Record<string, unknown> & { mcpServers?: Record<string, unknown> }>(file) : {};
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error(`${file} couldn't be read, so it was left as it is. Try again in a moment.`);
+  backup(file);
   const servers = { ...(data.mcpServers ?? {}) };
   change(servers);
   data.mcpServers = servers;

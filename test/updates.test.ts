@@ -54,7 +54,7 @@ test("a delivery introduces itself, labels each piece and keeps the newest when 
   const full = formatDelivery(items);
   assert.match(full, /^\[Crosstalk\] The person connected this chat/);
   assert.match(full, /## The chat “Billing fix” \(Claude\), now connected to this one/);
-  assert.match(full, /## New in “Billing fix” \(Claude, \d\d:\d\d\)\n\n\*\*Claude:\*\* newest/);
+  assert.match(full, /## New in “Billing fix” \(Claude, \d\d:\d\d\)\n\n<crosstalk-data-([0-9a-f]{8})>\n\*\*Claude:\*\* newest\n<\/crosstalk-data-\1>/);
   const short = formatDelivery(items, 200);
   assert.doesNotMatch(short, /OLD/);
   assert.match(short, /1 older piece left out/);

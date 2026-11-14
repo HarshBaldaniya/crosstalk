@@ -204,6 +204,9 @@ export function doctor(latest?: string, self = "crosstalk"): Check[] {
 
 // ---------------------------------------------------------------- updates
 
+/** A plain version number, as npm publishes them: 1.2.3 or 1.2.3-beta.1. */
+export const VERSION_RE = /^\d{1,6}\.\d{1,6}\.\d{1,6}(-[0-9A-Za-z.]{1,40})?$/;
+
 /** a > b, for plain x.y.z versions. */
 export function newer(a: string, b: string): boolean {
   const pa = a.split(/[.-]/).map((x) => Number(x) || 0);
@@ -233,16 +236,31 @@ export async function latestVersion(o: { force?: boolean; timeoutMs?: number } =
     }
   }
   const latest = await new Promise<string | undefined>((resolve) => {
-    const req = https.get(`https://registry.npmjs.org/${NPM_PACKAGE}/latest`, { headers: { accept: "application/json" }, timeout: o.timeoutMs ?? 1500 }, (res) => {
+    // One deadline for the whole answer (not just between bytes), at most 64 KB read, and only a
+    // plain version number accepted: the answer ends up in an npm command line.
+    const limit = o.timeoutMs ?? 1500;
+    const req = https.get(`https://registry.npmjs.org/${NPM_PACKAGE}/latest`, { headers: { accept: "application/json" }, timeout: limit }, (res) => {
       let body = "";
-      res.on("data", (d) => (body += d));
+      res.setEncoding("utf8");
+      res.on("data", (d: string) => {
+        body += d;
+        if (body.length > 64 * 1024) req.destroy();
+      });
       res.on("end", () => {
         try {
-          resolve(res.statusCode === 200 ? (JSON.parse(body) as { version?: string }).version : undefined);
+          const v = res.statusCode === 200 ? (JSON.parse(body) as { version?: unknown }).version : undefined;
+          resolve(typeof v === "string" && VERSION_RE.test(v) ? v : undefined);
         } catch {
           resolve(undefined);
         }
       });
+      res.on("error", () => resolve(undefined));
+    });
+    const deadline = setTimeout(() => req.destroy(), limit);
+    deadline.unref();
+    req.on("close", () => {
+      clearTimeout(deadline);
+      resolve(undefined);
     });
     req.on("timeout", () => req.destroy());
     req.on("error", () => resolve(undefined));

@@ -21,6 +21,8 @@ import {
 const tmp = (p: string) => fs.mkdtempSync(path.join(os.tmpdir(), p));
 beforeEach(() => {
   process.env.CROSSTALK_HOME = tmp("crosstalk-rec-home-");
+  // Chats live where Claude Code keeps them: words are only read back from an agent's own folder.
+  process.env.CLAUDE_CONFIG_DIR = tmp("crosstalk-rec-claude-");
 });
 
 const j = (o: unknown) => JSON.stringify(o) + "\n";
@@ -32,7 +34,8 @@ const edit = (file: string) => j({ type: "assistant", timestamp: ts(), message: 
 const result = (text: string) => j({ type: "user", timestamp: ts(), message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t", content: text }] } });
 
 function chat(text: string): string {
-  const file = path.join(tmp("crosstalk-rec-chat-"), "c.jsonl");
+  const dir = fs.mkdtempSync(path.join(process.env.CLAUDE_CONFIG_DIR!, "projects-"));
+  const file = path.join(dir, "c.jsonl");
   fs.writeFileSync(file, text);
   return file;
 }

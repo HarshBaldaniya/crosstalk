@@ -341,8 +341,15 @@ Also `map`, `overview`, `check unused`, `commands`, `tokens`, `backup`, `restore
 
 ## Your data and privacy
 
-- **Nothing leaves your computer.** Crosstalk reads the session files your agents already write and
-  keeps its own data in `~/.crosstalk`. There is no server, no account and no telemetry.
+- **Crosstalk sends nothing anywhere.** It reads the session files your agents already write and
+  keeps its own data in `~/.crosstalk`, readable only by you. There is no server, no account and no
+  telemetry; the only network call is a daily check of npm for a newer version (turn it off with
+  `CROSSTALK_NO_UPDATE_CHECK=1`). What you share between connected chats becomes part of the
+  receiving chat, so it goes to that agent's provider like anything else you type there.
+- **Secrets stay out.** API keys, tokens and private keys pasted into a chat are taken out before
+  anything is written to a flightlog, sent to another chat or returned by a tool.
+- **Shared text is data, not orders.** What one chat sends another is fenced and marked as
+  information, so words in it can't pass for your instructions.
 - **No AI of its own.** The Map is built by a parser; notes between chats are taken from what the
   chats already wrote.
 - **No logins.** Crosstalk never reads a login, token or key file.

@@ -37,8 +37,8 @@ writeFileSync(
   `# crosstalk-ai
 
 Crosstalk for the terminal: one command sets up **Claude Code**, **Codex** and **Gemini CLI** with a map of
-your code, ready-made commands, skills, and shared records of your chats. No AI of its own; nothing
-leaves your computer.
+your code, ready-made commands, skills, and shared records of your chats. No AI of its own, no server,
+no telemetry.
 
 \`\`\`bash
 npm create crosstalk         # set up every agent found, and add the crosstalk command

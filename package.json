@@ -293,5 +293,11 @@
     "@vscode/vsce": "^4.1.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "Crosstalk reads your agents' chats and edits their settings, so it runs only in folders you trust."
+    }
   }
 }

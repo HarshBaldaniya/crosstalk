@@ -6,9 +6,8 @@ import * as path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { listNotes, saveNote } from "../core/notes";
+import { listNotes, readNote, saveNote } from "../core/notes";
 import { catchUpRecord, exchangeText, listHeads, readAsks, recordBehind, type RecordAsk, type RecordHead } from "../core/record";
-import { workspaceCrosstalkPath } from "../core/paths";
 import { CodeMap } from "../codemap/index";
 import { renderTokenReport, tokenReport } from "../core/tokens";
 import { allCommands, renderCommand, userLibraryDir, type LibraryCommand } from "../library/index";
@@ -216,16 +215,18 @@ server.registerTool(
   },
   async ({ name, title, text: body }) => {
     if (title && body) {
-      const saved = saveNote(root, title, `# ${title}\n\n${body.trim()}`);
+      let saved: string;
+      try {
+        saved = saveNote(root, title, `# ${title}\n\n${body.trim()}`);
+      } catch (err) {
+        return text(err instanceof Error ? err.message : String(err), true);
+      }
       return text(`Saved as ${saved}. Other chats can read it with crosstalk_notes.`);
     }
     if (name) {
-      const dir = workspaceCrosstalkPath(root);
-      const file = path.resolve(dir, name);
-      if (!file.startsWith(path.join(dir, "notes") + path.sep) || !fs.existsSync(file)) {
-        return text(`No note called ${name}. Call crosstalk_notes with nothing to see the names.`, true);
-      }
-      return text(fs.readFileSync(file, "utf8"));
+      const note = readNote(root, name);
+      if (note === undefined) return text(`No note called ${name}. Call crosstalk_notes with nothing to see the names.`, true);
+      return text(note);
     }
     const notes = listNotes(root);
     return text(

@@ -105,6 +105,9 @@ export function readSince(tool: HookTool, file: string, cursor: number): { messa
 }
 
 /** Where a chat's record ends now, in its tool's cursor units. */
+/** Gemini CLI keeps a chat as one JSON file, read whole: past this size the hook leaves it to the extension. */
+const GEMINI_HOOK_MAX = 32 * 1024 * 1024;
+
 export function endOf(tool: HookTool, file: string): number {
   if (tool !== "gemini") return fileSize(file);
   return loadGeminiChat(file)?.messages?.length ?? 0;
@@ -128,6 +131,14 @@ export function sendUpdates(input: HookInput, now = Date.now(), tool: HookTool =
   if (from === undefined) {
     // Never read before: start from here rather than resend its whole past.
     setCursor(id, endOf(tool, input.transcript_path));
+    return 0;
+  }
+  // A chat that grew a lot while sharing was off (hundreds of MB) is not read here: the hook has a
+  // few seconds, and a read that never finishes would never move the bookmark either. Skip ahead;
+  // what was said is in the flightlog, which the extension catches up on its own.
+  if (tool === "gemini" && fileSize(input.transcript_path) > GEMINI_HOOK_MAX) return 0;
+  if (tool !== "gemini" && fileSize(input.transcript_path) - from > HOOK_STEP_MAX) {
+    setCursor(id, fileSize(input.transcript_path));
     return 0;
   }
   // The words themselves are read only when a link asks for them.
