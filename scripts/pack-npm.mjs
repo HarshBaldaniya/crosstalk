@@ -48,8 +48,9 @@ crosstalk update             # move to the newest version and refresh every agen
 crosstalk remove             # take it all out again (--purge also deletes its data)
 \`\`\`
 
-The same on macOS (Apple silicon and Intel), Windows and Linux, with Node.js 20 or newer. Without
-installing anything: \`npx crosstalk-ai\`, \`npx crosstalk-ai doctor\` and so on.
+Also \`pnpm create crosstalk\`, \`yarn create crosstalk\` and \`bun create crosstalk\`. Without installing anything:
+\`npx crosstalk-ai\`, \`pnpm dlx crosstalk-ai\`, \`bunx crosstalk-ai\`. The same on macOS (Apple silicon and Intel),
+Windows and Linux, with Node.js 20 or newer. \`crosstalk help\` lists every command.
 
 Once set up, your agents:
 

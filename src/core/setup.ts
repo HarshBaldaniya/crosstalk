@@ -5,7 +5,7 @@ import * as fs from "node:fs";
 import * as https from "node:https";
 import * as os from "node:os";
 import * as path from "node:path";
-import { crosstalkFile, crosstalkHome, writeFileAtomic } from "./paths";
+import { crosstalkFile, crosstalkHome, guardRealHome, writeFileAtomic } from "./paths";
 import { connect, disconnect, findClaude, findNode, hookCommandFor, hookTargets, installedHookPath, isToolConnected, staleHookTargets } from "./hooks";
 import { agentStates, installToolkit, removeToolkit, type AgentId } from "./toolkit";
 import { installSkills, removeSkills, SKILLS, skillsState, type SkillAgent } from "./skills";
@@ -31,6 +31,7 @@ export function claudePluginInstalled(): boolean {
  *  npx cache or an extension update never leaves an agent pointing at a file that moved. */
 export function installFiles(fromDir: string): number {
   const home = crosstalkHome();
+  guardRealHome(home);
   fs.mkdirSync(path.join(home, "wasm"), { recursive: true });
   let n = 0;
   if (path.resolve(fromDir) !== path.resolve(home)) {
@@ -123,6 +124,7 @@ export async function remove(o: { purge?: boolean; claudeCli?: string | null } =
   lines.push(...(await removeToolkit(present, { claudeCli: o.claudeCli === null ? undefined : (o.claudeCli ?? findClaude()) })));
   lines.push(`Skills removed: ${removeSkills(["claude", "codex"])}.`);
   if (o.purge) {
+    guardRealHome(crosstalkHome());
     fs.rmSync(crosstalkHome(), { recursive: true, force: true });
     lines.push(`Deleted ${crosstalkHome()} (flightlogs, the Map, your own commands).`);
   } else lines.push(`Your data stays in ${crosstalkHome()}; add --purge to delete it.`);
@@ -210,9 +212,17 @@ export function newer(a: string, b: string): boolean {
   return false;
 }
 
+/** Update checks are off in CI and when asked (CROSSTALK_NO_UPDATE_CHECK=1, or the common
+ *  NO_UPDATE_NOTIFIER). `crosstalk update` still asks, since that is what it is for. */
+export function updateChecksOff(): boolean {
+  const on = (v?: string) => !!v && v !== "0" && v.toLowerCase() !== "false";
+  return on(process.env.CROSSTALK_NO_UPDATE_CHECK) || on(process.env.NO_UPDATE_NOTIFIER) || on(process.env.CI);
+}
+
 /** The newest version on npm, asked at most once a day (the answer is kept in ~/.crosstalk). Never
  *  slows anything down by more than `timeoutMs`, and says nothing when offline. */
 export async function latestVersion(o: { force?: boolean; timeoutMs?: number } = {}): Promise<string | undefined> {
+  if (!o.force && updateChecksOff()) return undefined;
   const cache = crosstalkFile("update-check.json");
   if (!o.force) {
     try {

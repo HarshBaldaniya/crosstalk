@@ -16,7 +16,10 @@
 - **One command**: `npm create crosstalk` sets up every agent found and adds the `crosstalk`
   command. Then `crosstalk` shows what each agent has, `crosstalk doctor` checks it, `crosstalk
   update` moves to the newest version and `crosstalk remove` takes it out. `npx crosstalk-ai` does
-  the same without installing. The same on macOS, Windows and Linux.
+  the same without installing. The same on macOS, Windows and Linux, with npm, pnpm, Yarn or Bun.
+- **A full command line**: grouped help, `crosstalk help <command>` with examples, `version`,
+  `about`, `docs`, `bug` (an issue with your version and system filled in), `--json` for scripts,
+  tab completion for bash, zsh, fish and PowerShell, and "did you mean" for typos.
 - **Used without being asked**: the tools carry instructions agents read at the start of a session,
   and three skills (`crosstalk-find-code`, `crosstalk-recall`, `crosstalk-catchup`) load when a task
   matches.

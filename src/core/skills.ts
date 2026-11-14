@@ -8,7 +8,7 @@ import * as path from "node:path";
 import findCode from "../../skills/crosstalk-find-code/SKILL.md";
 import recall from "../../skills/crosstalk-recall/SKILL.md";
 import catchup from "../../skills/crosstalk-catchup/SKILL.md";
-import { writeFileAtomic } from "./paths";
+import { guardRealHome, writeFileAtomic } from "./paths";
 
 export const SKILLS: { name: string; text: string }[] = [
   { name: "crosstalk-find-code", text: findCode },
@@ -50,6 +50,7 @@ export function removeSkills(agents: SkillAgent[]): number {
     for (const s of SKILLS) {
       const dir = path.join(skillsDir(a), s.name);
       if (!fs.existsSync(path.join(dir, MARK))) continue;
+      guardRealHome(dir);
       fs.rmSync(dir, { recursive: true, force: true });
       n++;
     }

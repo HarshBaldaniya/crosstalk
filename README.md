@@ -159,10 +159,18 @@ Pick the way that fits how you work. They all install the same thing, and you ca
 npm create crosstalk
 ```
 
-The same line in Terminal, PowerShell and any Linux shell (`pnpm create crosstalk`, `yarn create
-crosstalk` and `bun create crosstalk` work too). It finds Claude Code, Codex and Gemini CLI on your
-computer and gives each one the Map tools, the commands, three skills and auto-sharing, and adds the
-`crosstalk` command. Every settings file it touches is backed up first.
+Use whichever package manager you already have. Each line does the same thing:
+
+| Package manager | Set up (first time) | Run once, without installing | Install only the command |
+|---|---|---|---|
+| npm | `npm create crosstalk` | `npx crosstalk-ai` | `npm install --global crosstalk-ai` |
+| pnpm | `pnpm create crosstalk` | `pnpm dlx crosstalk-ai` | `pnpm add --global crosstalk-ai` |
+| Yarn | `yarn create crosstalk` | `yarn dlx crosstalk-ai` | `yarn global add crosstalk-ai` (Yarn 1) |
+| Bun | `bun create crosstalk` | `bunx crosstalk-ai` | `bun add --global crosstalk-ai` |
+
+Setup finds Claude Code, Codex and Gemini CLI on your computer. It gives each one the Map tools, the
+commands, three skills and auto-sharing, and adds the `crosstalk` command with the same package
+manager. Every settings file it touches is backed up first.
 
 ```text
   Crosstalk 0.0.1  setting up your agents
@@ -175,21 +183,39 @@ computer and gives each one the Map tools, the commands, three skills and auto-s
   Done. Restart open agent chats to pick it up.
 ```
 
-After that, in any terminal:
+### The crosstalk command
 
 | Command | What it does |
 |---|---|
 | `crosstalk` | Show what each agent has (and set up anything missing) |
 | `crosstalk doctor` | Check that everything works, with the exact fix for anything that doesn't |
-| `crosstalk update` | Move to the newest version and refresh every agent at once |
+| `crosstalk update` | Move to the newest version, with the package manager that installed it, and refresh every agent |
+| `crosstalk update --check` | Only say whether a newer version is out |
 | `crosstalk remove` | Take Crosstalk out of every agent (`--purge` also deletes its data) |
-| `crosstalk help` | Every command, including the Map's `find`, `outline` and `graph` |
+| `crosstalk find "rate limiter"` | Where something is in your code; also `outline`, `graph`, `overview` |
+| `crosstalk version` | This version, and whether a newer one is out |
+| `crosstalk about` | Version, Node.js, your system, where it is installed, and the links |
+| `crosstalk bug` | Report a problem: opens a GitHub issue with your version and system filled in |
+| `crosstalk help <command>` | Options and examples for any command (`crosstalk find --help` works too) |
 
-Options for setup: `--agents claude,codex` for only some agents, `--no-sharing` to leave auto-sharing
+`status`, `doctor`, `version` and `about` take `--json` for scripts. `--no-color` (or `NO_COLOR=1`)
+gives plain text. Mistype a command and it suggests the closest one.
+
+Setup options: `--agents claude,codex` for only some agents, `--no-sharing` to leave auto-sharing
 off, `--no-command` to skip the `crosstalk` command, `--verbose` for every file it changed.
 
-Without installing anything, `npx crosstalk-ai` runs the same thing (`npx crosstalk-ai doctor` and
-so on). If npm can't add global commands on your computer, use that.
+**Tab completion** for your shell:
+
+```bash
+echo 'eval "$(crosstalk completion zsh)"' >> ~/.zshrc        # zsh (macOS default)
+echo 'eval "$(crosstalk completion bash)"' >> ~/.bashrc      # bash
+crosstalk completion fish > ~/.config/fish/completions/crosstalk.fish
+crosstalk completion powershell | Out-String | Invoke-Expression   # PowerShell: add to $PROFILE
+```
+
+**Updates:** Crosstalk checks npm for a newer version at most once a day and says so in one line. It
+never updates by itself. The check is off in CI, and with `CROSSTALK_NO_UPDATE_CHECK=1` or
+`NO_UPDATE_NOTIFIER=1`.
 
 **Works on** macOS (Apple silicon and Intel), Windows 10 and 11, and Linux (x64 and Arm). Nothing is
 compiled for your computer: it is JavaScript and a WebAssembly parser, so it runs wherever Node.js

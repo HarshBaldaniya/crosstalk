@@ -267,7 +267,7 @@ export function handle(raw: HookInput, now = Date.now(), tool: HookTool = "claud
   }
 }
 
-function main(): void {
+export function main(): void {
   const arg = (process.argv[2] ?? "claude").toLowerCase();
   const tool: HookTool = arg === "codex" || arg === "gemini" ? arg : "claude";
   let raw = "";
@@ -285,4 +285,3 @@ function main(): void {
   setTimeout(() => process.exit(0), 4000).unref();
 }
 
-if (require.main === module) main();

@@ -6,7 +6,7 @@ import { execFile } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { crosstalkFile, writeFileAtomic } from "./paths";
+import { crosstalkFile, guardRealHome, writeFileAtomic } from "./paths";
 import { builtinCommands, renderCommand, type LibraryCommand } from "../library/index";
 
 export type AgentId = "claude" | "codex" | "gemini";
@@ -76,6 +76,8 @@ export type Runner = (cmd: string, args: string[]) => Promise<{ ok: boolean; out
 /** Runs an agent's own command. On Windows a .cmd (as npm installs them) needs a shell to start. */
 export const runCli: Runner = (cmd, args) =>
   new Promise((resolve) => {
+    // An agent's own command writes to the person's real settings: never from a test.
+    if (process.env.NODE_TEST_CONTEXT) throw new Error(`A test tried to run ${cmd}. Pass claudeCli: null.`);
     const home = os.homedir();
     const extra = process.platform === "win32" ? [path.join(process.env.APPDATA ?? path.join(home, "AppData", "Roaming"), "npm")] : [path.join(home, ".local", "bin"), "/opt/homebrew/bin", "/usr/local/bin"];
     const useShell = process.platform === "win32" && /\.(cmd|bat)$/i.test(cmd);
@@ -220,6 +222,7 @@ export function refreshCodexPrompts(): number {
 
 function removeCodexPrompts(): number {
   const owned = ownedPrompts();
+  guardRealHome(codexPromptsDir());
   for (const f of owned) fs.rmSync(path.join(codexPromptsDir(), f), { force: true });
   fs.rmSync(path.join(codexPromptsDir(), MANIFEST), { force: true });
   return owned.length;

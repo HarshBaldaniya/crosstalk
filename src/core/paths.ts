@@ -70,7 +70,20 @@ export function workspaceCrosstalkDir(root: string): string {
   return dir;
 }
 
+/** The person's real agent folders. Under `node --test` nothing may change them: every test points
+ *  them at temporary folders, and this stops one that forgot (or ran too early) instead of letting it
+ *  rewrite someone's Claude Code, Codex or Gemini CLI settings. */
+export function guardRealHome(file: string): void {
+  if (!process.env.NODE_TEST_CONTEXT) return;
+  const f = path.resolve(file);
+  for (const d of [".claude", ".claude.json", ".codex", ".gemini", ".agents", ".crosstalk"]) {
+    const real = path.join(os.homedir(), d);
+    if (f === real || f.startsWith(real + path.sep)) throw new Error(`A test tried to change ${real}. Point it at a temporary folder.`);
+  }
+}
+
 export function writeFileAtomic(file: string, text: string): void {
+  guardRealHome(file);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
   fs.writeFileSync(tmp, text);

@@ -1,84 +1,31 @@
-// Crosstalk from a terminal, on any computer: the same code map, Library and session tools as the
-// extension, for CI, cloud agents and machines without VS Code. macOS, Windows and Linux.
-//
-//   node crosstalk.js map [folder]          build or refresh the code map
-//   node crosstalk.js find <words>          where something is
-//   node crosstalk.js outline <path|name>   one level of a folder, file or symbol
-//   node crosstalk.js graph <name|path>     who uses it, what it uses (--hops 2)
-//   node crosstalk.js overview              the project card
-//   node crosstalk.js check unused|docs     clean-up candidates, stale doc lines
-//   node crosstalk.js commands [words]      the Library, or the commands that fit a task
-//   node crosstalk.js tokens <chat file>    where a chat's tokens went
-//   node crosstalk.js backup <folder>       copy session logs to a folder
-//   node crosstalk.js restore <folder>      bring them back on this computer
-//   node crosstalk.js mcp                   run the MCP server (for an agent's config)
-//   npx crosstalk-ai                        set up every agent (or, once set up, show what each has)
-//   crosstalk doctor | update | remove | version   check, keep current, take away
+// Crosstalk from a terminal, on any computer: setup for every agent, and the same code map, commands
+// and session tools as the extension, for CI, cloud agents and machines without VS Code. The same on
+// macOS, Windows and Linux. Every command is described once, in ./help.ts.
 import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { crosstalkHome } from "../core/paths";
-import { findCommand } from "../core/hooks";
 import { CodeMap } from "../codemap/index";
 import { backUp, restore } from "../core/backup";
 import { renderTokenReport, tokenReport } from "../core/tokens";
 import { allCommands, suggest } from "../library/index";
-import { agentSummary, doctor, installedVersion, latestVersion, needsSetup, newer, npmCommand, NPM_PACKAGE, remove, setup, VERSION, type AgentSummary } from "../core/setup";
+import { agentSummary, doctor, installedVersion, latestVersion, needsSetup, newer, NPM_PACKAGE, remove, setup, updateChecksOff, VERSION, type AgentSummary } from "../core/setup";
 import type { AgentId } from "../core/toolkit";
+import { aboutInfo, bugUrl, CHANGELOG, DOCS, openUrl, REPO } from "./about";
+import { closest, commandInfo, completion, renderCommandHelp, renderHelp, SHELLS, type Shell } from "./help";
+import { globalInstall, oneOff, ourCommand, pmCommand, startedBy, type OurCommand, type PackageManager } from "./pm";
+import { columns, out, paint, plain } from "./ui";
 
-/** This copy is the `crosstalk` command installed with npm -g (not a one-off npx run). */
-const GLOBAL = /[\\/]node_modules[\\/](crosstalk-ai|create-crosstalk)[\\/]/.test(__dirname) && !/[\\/]_npx[\\/]/.test(__dirname);
+/** The `crosstalk` command, looked up once (it asks the login shell, so not for every command). */
+let command: OurCommand | null | undefined;
+const theCommand = () => (command === undefined ? (command = ourCommand() ?? null) : command) ?? undefined;
 
-/** Crosstalk's own `crosstalk` command on the PATH, if there is one (another program could use the
- *  same name). npm -g links it into its package on macOS and Linux, and puts a .cmd beside it on Windows. */
-function ourCommand(): string | undefined {
-  const found = findCommand("crosstalk");
-  if (!found) return undefined;
-  try {
-    if (/[\\/]node_modules[\\/]crosstalk-ai[\\/]/.test(fs.realpathSync(found))) return found;
-  } catch {
-    // A broken link: not usable.
-  }
-  return fs.existsSync(path.join(path.dirname(found), "node_modules", NPM_PACKAGE)) ? found : undefined;
-}
+/** How to type Crosstalk here: `crosstalk` once that command exists, otherwise the one-off form of
+ *  the package manager that started this run (npx, pnpm dlx, yarn dlx, bunx). */
+const self = () => (theCommand() ? "crosstalk" : oneOff(startedBy()));
 
-/** How to type Crosstalk here: `crosstalk` once that command exists, otherwise through npx. */
-let selfName: string | undefined;
-const self = () => (selfName ??= GLOBAL || ourCommand() ? "crosstalk" : `npx ${NPM_PACKAGE}`);
-
-const help = () => `Crosstalk ${VERSION}: a map of your code, your other chats' records and ready-made commands, for Claude Code, Codex and Gemini CLI.
-
-Usage: ${self()} [command]
-
-  (no command)                    set up every agent on this computer, or show what each one has
-  doctor                          check that everything works, with the fix for anything that doesn't
-  update                          move to the newest version and refresh every agent
-  remove                          take Crosstalk out of every agent (--purge also deletes its data)
-  setup                           set up again: --agents claude,codex,gemini   --no-sharing   --verbose
-                                  --no-command leaves out the crosstalk command
-
-  map [folder]                    build or refresh the code map (about 1 MB, no AI)
-  find <words>                    where something is: ranked, with path:start-end
-  outline <path|name>             a folder, file or symbol, one level, with lines
-  graph <name|path>               who uses it and what it uses (--hops 2 for more)
-  overview                        commands, entry points, main parts, conventions
-  check unused|docs               unused code, or doc lines naming things that are gone
-  commands [words]                the commands, or the ones that fit a task
-  tokens <chat file>              where a Claude or Codex chat's tokens went
-  backup <folder>                 copy session logs and your commands to a folder
-  restore <folder>                bring them back (merges; never loses anything)
-  mcp                             run the MCP server, for an agent's settings
-  version                         this version, and whether a newer one is out
-
-Options: --in <folder> (default: this folder), --hops 2, --limit N`;
-
-// Plain words people reach for, mapped to the command that does it.
-const ALIASES: Record<string, string> = { install: "setup", init: "setup", uninstall: "remove", upgrade: "update", status: "", "--help": "help", "-h": "help", "--version": "version", "-v": "version" };
-
-// Colour only in a terminal that wants it (NO_COLOR, pipes and CI logs stay plain).
-const colour = !!process.stdout.isTTY && !process.env.NO_COLOR && process.env.TERM !== "dumb";
-const tint = (code: string) => (t: string) => (colour ? `\x1b[${code}m${t}\x1b[0m` : t);
-const paint = { ok: tint("32"), warn: tint("33"), bad: tint("31"), dim: tint("2"), bold: tint("1") };
+const uninstallLine = (by: PackageManager) =>
+  by === "pnpm" ? `pnpm remove --global ${NPM_PACKAGE}` : by === "bun" ? `bun remove --global ${NPM_PACKAGE}` : by === "yarn" ? `yarn global remove ${NPM_PACKAGE}` : `npm uninstall --global ${NPM_PACKAGE}`;
 
 function option(args: string[], name: string): string | undefined {
   const i = args.indexOf(name);
@@ -88,20 +35,38 @@ function option(args: string[], name: string): string | undefined {
   return v;
 }
 
+/** Takes a flag out of the arguments; true when it was there. */
+function flag(args: string[], ...names: string[]): boolean {
+  let found = false;
+  for (let i = args.length - 1; i >= 0; i--) {
+    if (names.includes(args[i])) {
+      args.splice(i, 1);
+      found = true;
+    }
+  }
+  return found;
+}
+
+const json = (v: unknown) => out(JSON.stringify(v, null, 2));
+
 export async function main(argv: string[]): Promise<number> {
   const args = [...argv];
-  let first = args.shift();
-  // `npx crosstalk-ai --agents codex` is the bare command with options.
-  if (first?.startsWith("--") && !(first in ALIASES)) {
-    args.unshift(first);
-    first = undefined;
+  if (flag(args, "--no-color", "--no-colour")) plain();
+  const asJson = flag(args, "--json");
+  const wantsHelp = flag(args, "-h", "--help");
+  const wantsVersion = args[0] === "-v" || args[0] === "--version";
+  let first = wantsVersion ? (args.shift(), "version") : args[0]?.startsWith("-") ? undefined : args.shift();
+  if (wantsHelp && !first) first = "help";
+  const info = first ? commandInfo(first) : undefined;
+  const cmd = info?.name ?? first;
+  if (wantsHelp && info && cmd !== "help") {
+    out(renderCommandHelp(info, self()));
+    return 0;
   }
-  const cmd = first !== undefined && first in ALIASES ? ALIASES[first] || undefined : first;
   const folder = path.resolve(option(args, "--in") ?? process.cwd());
   const hops = option(args, "--hops") === "2" ? 2 : 1;
   const limit = Number(option(args, "--limit") ?? "") || undefined;
-  const rest = args.join(" ").trim();
-  const out = (t: string) => process.stdout.write(`${t}\n`);
+  const rest = args.filter((a) => !a.startsWith("--")).join(" ").trim();
 
   const freshMap = async (root = folder) => {
     const m = new CodeMap(root);
@@ -171,74 +136,161 @@ export async function main(argv: string[]): Promise<number> {
       if (!process.env.CROSSTALK_ROOT) process.env.CROSSTALK_ROOT = folder;
       require(path.join(__dirname, "crosstalk-mcp.js"));
       return -1;
-    case undefined: {
+    case undefined:
+    case "status": {
       // The one command to remember: sets up what needs it, otherwise says how things stand.
-      if (first !== "status" && needsSetup()) return runSetup(args, argv);
+      if (cmd === undefined && !asJson && needsSetup()) return runSetup(args, argv);
+      const list = agentSummary();
+      if (asJson) {
+        json({ version: VERSION, installed: installedVersion() ?? null, setUp: !needsSetup(), agents: list });
+        return 0;
+      }
       const iv = installedVersion();
-      if (iv && newer(iv, VERSION)) out(`\n  ${paint.dim(`Crosstalk ${iv} is installed; this is ${VERSION}. Run: npx ${NPM_PACKAGE}@latest`)}`);
-      printAgents(agentSummary());
+      if (iv && newer(iv, VERSION)) out(`\n  ${paint.dim(`Crosstalk ${iv} is installed; this copy is ${VERSION}.`)}`);
+      printAgents(list);
       const latest = await latestVersion({ timeoutMs: 1500 });
       if (latest && newer(latest, iv ?? VERSION)) out(`\n  ${paint.warn("!")} Crosstalk ${latest} is out. Run: ${self()} update`);
-      out(`\n  Everything is set up. ${paint.dim(`${self()} doctor checks it, ${self()} help lists every command.`)}\n`);
+      out(needsSetup() ? `\n  Something needs setting up. Run: ${self()}\n` : `\n  Everything is set up. ${paint.dim(`${self()} help lists every command.`)}\n`);
       return 0;
     }
     case "setup":
       return runSetup(args, argv);
     case "doctor": {
-      out(`\n  ${paint.bold(`Crosstalk ${installedVersion() ?? VERSION}`)}\n`);
       const checks = doctor(await latestVersion({ timeoutMs: 2500 }), self());
+      const bad = checks.filter((c) => c.ok === false).length;
+      if (asJson) {
+        json({ ok: bad === 0, version: VERSION, checks });
+        return bad ? 1 : 0;
+      }
+      out(`\n  ${paint.bold(`Crosstalk ${installedVersion() ?? VERSION}`)}\n`);
       for (const c of checks) {
         out(`  ${c.ok === true ? paint.ok("✓") : c.ok === "warn" ? paint.warn("!") : paint.bad("✗")} ${c.what}`);
         if (c.ok !== true && c.fix) out(`    ${paint.dim(c.fix)}`);
       }
-      const bad = checks.filter((c) => c.ok === false).length;
       out(bad ? `\n  ${bad} thing${bad === 1 ? "" : "s"} to fix.\n` : "\n  Everything works.\n");
       return bad ? 1 : 0;
     }
-    case "update": {
-      const latest = await latestVersion({ force: true, timeoutMs: 6000 });
-      if (!latest) {
-        out(`  Couldn't reach npm. Try again online, or run: npx ${NPM_PACKAGE}@latest`);
-        return 1;
-      }
-      if (!newer(latest, VERSION)) {
-        // Already the newest: refresh every agent from this copy, in case anything drifted.
-        await setup({ fromDir: __dirname });
-        out(`\n  ${paint.ok("✓")} Crosstalk ${VERSION} is the newest, and every agent is refreshed.\n`);
-        return 0;
-      }
-      out(`\n  Updating Crosstalk ${VERSION} → ${latest} ...\n`);
-      // Installed with npm -g: update that copy too; then the new version sets every agent up.
-      if (GLOBAL) {
-        const g = run(npmCommand("npm", ["install", "-g", `${NPM_PACKAGE}@${latest}`]));
-        if (g !== 0) return g;
-      }
-      return run(npmCommand("npx", ["-y", `${NPM_PACKAGE}@${latest}`, "setup"]));
-    }
+    case "update":
+      return update(argv.includes("--check"));
     case "remove": {
       for (const l of await remove({ purge: argv.includes("--purge") })) out(`  ${l}`);
       out("\n  Restart open agent chats to finish. If you also use the VS Code extension, uninstall it in VS Code.");
-      if (GLOBAL || ourCommand()) out(`  ${paint.dim(`The crosstalk command stays until: npm uninstall --global ${NPM_PACKAGE}`)}`);
+      const c = theCommand();
+      if (c) out(`  ${paint.dim(`The crosstalk command stays until: ${uninstallLine(c.by)}`)}`);
       out("");
       return 0;
     }
     case "version": {
-      out(`crosstalk ${VERSION}`);
       const latest = await latestVersion({ timeoutMs: 2500 });
-      if (latest && newer(latest, VERSION)) out(`${latest} is out. Run: ${self()} update`);
+      if (asJson) {
+        json(aboutInfo(theCommand(), latest));
+        return 0;
+      }
+      out(`crosstalk ${VERSION}`);
+      if (latest && newer(latest, VERSION)) out(`${paint.warn(`${latest} is out.`)} Run: ${self()} update  ${paint.dim(CHANGELOG)}`);
       return 0;
     }
-    case "help":
-      out(help());
+    case "about": {
+      const a = aboutInfo(theCommand(), await latestVersion({ timeoutMs: 2500 }));
+      if (asJson) {
+        json({ ...a, license: "MIT", homepage: REPO, docs: DOCS, changelog: CHANGELOG });
+        return 0;
+      }
+      const state = !a.latest ? paint.dim("couldn't check for a newer one") : newer(a.latest, a.version) ? paint.warn(`${a.latest} is out: ${self()} update`) : paint.ok("the newest");
+      out(`\n  ${paint.bold(`Crosstalk ${a.version}`)}`);
+      out(`  ${paint.dim("A map of your code, your other chats' records and ready-made commands, for every agent.")}\n`);
+      out(
+        columns([
+          ["Version", `${a.version} · ${state}`],
+          ["Node.js", a.node],
+          ["System", a.system],
+          ["Files", `${a.files}${a.filesVersion && a.filesVersion !== a.version ? ` (${a.filesVersion})` : ""}`],
+          ["Command", a.command ? `${a.command} · ${a.installedWith}` : paint.dim(`not installed (${self()} setup adds it)`)],
+          ["Agents", a.agents.join(", ") || paint.dim("none found")],
+        ]),
+      );
+      out("");
+      out(columns([["Guide", DOCS], ["Changes", CHANGELOG], ["Problems", `${self()} bug`], ["License", "MIT © Harsh Baldaniya"]]));
+      out("");
       return 0;
+    }
+    case "docs":
+      out(`Opening the guide: ${DOCS}`);
+      if (process.stdout.isTTY) openUrl(DOCS);
+      return 0;
+    case "bug": {
+      const url = bugUrl(aboutInfo(theCommand()));
+      out("Opening a new GitHub issue with your version and system filled in. Nothing is sent until you press Submit.");
+      out(paint.dim(url));
+      if (process.stdout.isTTY) openUrl(url);
+      return 0;
+    }
+    case "completion": {
+      const shell = rest.toLowerCase() as Shell;
+      if (!SHELLS.includes(shell)) {
+        out(renderCommandHelp(commandInfo("completion")!, self()));
+        return rest ? 2 : 0;
+      }
+      process.stdout.write(completion(shell));
+      return 0;
+    }
+    case "help": {
+      const about = rest ? commandInfo(rest) : undefined;
+      if (rest && !about) return unknown(rest);
+      out(about ? renderCommandHelp(about, self()) : renderHelp(self()));
+      return 0;
+    }
     default:
-      out(`Unknown command: ${first}. Run ${self()} help for the list.`);
-      return 2;
+      return unknown(first ?? "");
+  }
+
+  function unknown(word: string): number {
+    const near = closest(word);
+    out(`Unknown command "${word}".${near ? ` Did you mean ${paint.bold(near)}?` : ""} Run ${self()} help for the list.`);
+    return 2;
   }
 
   function usage(what: string): number {
     out(`Usage: ${self()} ${what}`);
     return 2;
+  }
+
+  async function update(checkOnly: boolean): Promise<number> {
+    const latest = await latestVersion({ force: true, timeoutMs: 6000 });
+    if (!latest) {
+      out(`  Couldn't reach npm. Try again when you are online.`);
+      return 1;
+    }
+    const current = !newer(latest, VERSION);
+    if (checkOnly) {
+      out(current ? `Crosstalk ${VERSION} is the newest.` : `Crosstalk ${latest} is out (you have ${VERSION}). Run: ${self()} update  ${paint.dim(CHANGELOG)}`);
+      return 0;
+    }
+    if (current) {
+      // Already the newest: refresh every agent from this copy, in case anything drifted.
+      await setup({ fromDir: __dirname });
+      out(`\n  ${paint.ok("✓")} Crosstalk ${VERSION} is the newest, and every agent is refreshed.\n`);
+      return 0;
+    }
+    out(`\n  Updating Crosstalk ${VERSION} → ${latest} ...\n`);
+    const spec = `${NPM_PACKAGE}@${latest}`;
+    const c = theCommand();
+    if (c) {
+      // The crosstalk command: update it with the package manager that installed it, then let the
+      // new version set every agent up.
+      const g = globalInstall(c.by, spec);
+      const code = run(pmCommand(g.bin, g.args));
+      if (code !== 0) {
+        out(`\n  ${paint.bad("✗")} ${g.bin} couldn't update it. Try: ${[g.bin, ...g.args].join(" ")}`);
+        return code;
+      }
+      const win = process.platform === "win32";
+      return run(win ? { cmd: `"${c.path}" setup --no-command`, args: [], shell: true } : { cmd: c.path, args: ["setup", "--no-command"], shell: false });
+    }
+    const pm = startedBy();
+    const once: [PackageManager | "npx", string[]] =
+      pm === "pnpm" ? ["pnpm", ["dlx", spec, "setup"]] : pm === "bun" ? ["bun", ["x", spec, "setup"]] : pm === "yarn" && !/^yarn\/1\./.test(process.env.npm_config_user_agent ?? "") ? ["yarn", ["dlx", spec, "setup"]] : ["npx", ["-y", spec, "setup"]];
+    return run(pmCommand(...once));
   }
 
   async function runSetup(rest: string[], all: string[]): Promise<number> {
@@ -257,12 +309,13 @@ export async function main(argv: string[]): Promise<number> {
     // Like pip: after the first `npm create crosstalk`, plain `crosstalk` works in any terminal.
     if (!all.includes("--no-command")) {
       const c = addCommand();
-      if (c === true) out(`  ${paint.ok("✓")} ${"crosstalk".padEnd(Math.max(...list.map((a) => a.name.length)) + 3)}the command, in any new terminal`);
-      else if (c) out(`  ${paint.warn("!")} Couldn't add the crosstalk command (${c}). ${paint.dim(`npx ${NPM_PACKAGE} does the same.`)}`);
+      const pad = Math.max(...list.map((a) => a.name.length)) + 3;
+      if (c === true) out(`  ${paint.ok("✓")} ${"crosstalk".padEnd(pad)}the command, in any new terminal`);
+      else if (c) out(`  ${paint.warn("!")} ${"crosstalk".padEnd(pad)}${paint.dim(`couldn't add the command (${c}); ${self()} does the same`)}`);
     }
     if (r.codexTrust) out(`\n  ${paint.warn("!")} One step left for Codex: type /hooks in Codex and trust Crosstalk's hook.`);
     out(`\n  Done. Restart open agent chats to pick it up.`);
-    out(`  ${paint.dim(`Check any time: ${self()} doctor`)}\n`);
+    out(`  ${paint.dim(`Check any time: ${self()} doctor · every command: ${self()} help`)}\n`);
     return list.every((a) => a.tools) ? 0 : 1;
   }
 
@@ -280,16 +333,25 @@ export async function main(argv: string[]): Promise<number> {
     }
   }
 
-  /** Installs this version as the `crosstalk` command: true when it is there, a reason when it
-   *  couldn't be added, undefined when it already was. */
+  /** Installs this version as the `crosstalk` command, with the package manager that started this
+   *  run (npm when that one can't: Yarn 2+, or pnpm without a global folder). True when added, a
+   *  reason when it couldn't be, undefined when it was already there. */
   function addCommand(): true | string | undefined {
-    if (GLOBAL || ourCommand()) return undefined;
-    const c = npmCommand("npm", ["install", "--global", "--no-fund", "--no-audit", "--loglevel=error", `${NPM_PACKAGE}@${VERSION}`]);
-    const r = spawnSync(c.cmd, c.args, { encoding: "utf8", shell: c.shell, windowsHide: true, timeout: 180_000 });
-    selfName = undefined;
-    if (r.status === 0) return true;
-    const why = `${r.stderr ?? ""}${r.stdout ?? ""}`;
-    return /EACCES|permission/i.test(why) ? "npm needs admin rights for global installs here" : /E404|404/.test(why) ? "not on npm yet" : "npm install failed";
+    if (theCommand()) return undefined;
+    const spec = `${NPM_PACKAGE}@${VERSION}`;
+    const tries = [startedBy(), "npm" as const].filter((pm, i, all) => all.indexOf(pm) === i);
+    let why = "";
+    for (const pm of tries) {
+      const g = globalInstall(pm, spec);
+      const c = pmCommand(g.bin, g.args);
+      const r = spawnSync(c.cmd, c.args, { encoding: "utf8", shell: c.shell, windowsHide: true, timeout: 180_000 });
+      if (r.status === 0) {
+        command = undefined;
+        return true;
+      }
+      why = `${r.stderr ?? ""}${r.stdout ?? ""}`;
+    }
+    return /EACCES|EPERM|permission/i.test(why) ? "global installs need admin rights here" : /E404|404/.test(why) ? "not on npm yet" : "the install failed";
   }
 
   function run(c: { cmd: string; args: string[]; shell: boolean }): number {
@@ -297,26 +359,11 @@ export async function main(argv: string[]): Promise<number> {
   }
 }
 
-if (require.main === module) {
-  main(process.argv.slice(2)).then(
-    (code) => {
-      if (code >= 0) {
-        updateNote(process.argv[2]);
-        process.exit(code);
-      }
-    },
-    (err) => {
-      console.error(err instanceof Error ? err.message : String(err));
-      process.exit(1);
-    },
-  );
-}
-
 /** After an everyday command in a terminal: one line when a newer version is out. It reads only the
  *  answer kept from the last daily check, so a command is never slowed down by a network call. */
-function updateNote(cmd: string | undefined): void {
-  const quiet = ["mcp", "update", "version", "--version", "-v", "doctor", "setup", "install", "init", "status", "upgrade"];
-  if (!process.stderr.isTTY || !cmd || quiet.includes(cmd)) return;
+export function updateNote(cmd: string | undefined): void {
+  const quiet = ["mcp", "update", "upgrade", "version", "--version", "-v", "about", "doctor", "setup", "install", "init", "status", "completion", "help", "--help", "-h"];
+  if (!process.stderr.isTTY || !cmd || quiet.includes(cmd) || process.argv.includes("--json") || updateChecksOff()) return;
   try {
     const c = JSON.parse(fs.readFileSync(path.join(crosstalkHome(), "update-check.json"), "utf8")) as { latest?: string };
     if (c.latest && newer(c.latest, VERSION)) process.stderr.write(`\nCrosstalk ${c.latest} is out (you have ${VERSION}). Run: ${self()} update\n`);

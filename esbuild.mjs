@@ -42,10 +42,10 @@ const configs = tests
     ]
   : [
       { ...node, entryPoints: ["src/extension.ts"], outfile: "dist/extension.js", external: ["vscode"] },
-      { ...node, entryPoints: ["src/hook/crosstalk-hook.ts"], outfile: "dist/crosstalk-hook.js" },
+      { ...node, entryPoints: ["src/hook/bin.ts"], outfile: "dist/crosstalk-hook.js" },
       { ...node, entryPoints: ["src/mcp/server.ts"], outfile: "dist/crosstalk-mcp.js" },
       // The command line runs as `crosstalk ...` once installed from npm, so it starts with a shebang.
-      { ...node, entryPoints: ["src/cli/main.ts"], outfile: "dist/crosstalk.js", banner: { js: "#!/usr/bin/env node\n" + node.banner.js } },
+      { ...node, entryPoints: ["src/cli/bin.ts"], outfile: "dist/crosstalk.js", banner: { js: "#!/usr/bin/env node\n" + node.banner.js } },
       {
         bundle: true,
         platform: "browser",
