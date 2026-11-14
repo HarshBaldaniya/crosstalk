@@ -7,7 +7,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { main } from "../src/cli/main";
 import { closest, commandInfo, COMMANDS, completion, renderCommandHelp, renderHelp, SHELLS } from "../src/cli/help";
-import { globalInstall, oneOff, ourCommand, startedBy } from "../src/cli/pm";
+import { globalInstall, oneOff, ourCommand, startedBy, temporary } from "../src/cli/pm";
 import { bugUrl } from "../src/cli/about";
 import { plain } from "../src/cli/ui";
 
@@ -68,6 +68,14 @@ test("the crosstalk command is ours only when it points at crosstalk-ai, and say
   const shim = path.join(dir, "pnpm-shim");
   fs.writeFileSync(shim, '#!/bin/sh\nexec node "$basedir/global/5/.pnpm/crosstalk-ai@0.0.1/node_modules/crosstalk-ai/crosstalk.js" "$@"\n');
   assert.equal(ourCommand(shim)?.by, "pnpm");
+
+  // npm create / npx put the package's own .bin first on the PATH while they run: that one is temporary.
+  const npxBin = path.join(dir, ".npm", "_npx", "0f41de45", "node_modules", ".bin");
+  fs.mkdirSync(npxBin, { recursive: true });
+  fs.copyFileSync(cmdShim, path.join(npxBin, "crosstalk"));
+  assert.equal(ourCommand(path.join(npxBin, "crosstalk")), undefined, "a one-run copy isn't installed");
+  for (const t of ["/x/node_modules/.bin/crosstalk", "C:\\Users\\a\\AppData\\Local\\npm-cache\\_npx\\1\\node_modules\\.bin\\crosstalk.cmd", "/Users/a/Library/Caches/pnpm/dlx/abc/node_modules/.bin/crosstalk", "/tmp/bunx-501-create-crosstalk/node_modules/.bin/crosstalk"]) assert.ok(temporary(t), t);
+  for (const t of ["/usr/local/bin/crosstalk", "/Users/a/.bun/bin/crosstalk", "/Users/a/Library/pnpm/crosstalk", "C:\\Users\\a\\AppData\\Roaming\\npm\\crosstalk.cmd"]) assert.ok(!temporary(t), t);
 
   const other = path.join(dir, "someone-elses");
   fs.writeFileSync(other, "#!/bin/sh\necho another program called crosstalk\n");

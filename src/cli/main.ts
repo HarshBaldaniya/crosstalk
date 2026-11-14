@@ -346,7 +346,8 @@ export async function main(argv: string[]): Promise<number> {
       const c = pmCommand(g.bin, g.args);
       const r = spawnSync(c.cmd, c.args, { encoding: "utf8", shell: c.shell, windowsHide: true, timeout: 180_000 });
       if (r.status === 0) {
-        command = undefined;
+        // Installed: from now on it is `crosstalk` (this run's PATH may still show the temporary one first).
+        command = { path: "crosstalk", by: g.bin === "npm" ? "npm" : pm };
         return true;
       }
       why = `${r.stderr ?? ""}${r.stdout ?? ""}`;

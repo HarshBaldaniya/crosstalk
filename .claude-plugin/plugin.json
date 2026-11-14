@@ -1,6 +1,6 @@
 {
   "name": "crosstalk",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A map of your code, the records of your other AI chats, and skills that use them: find code in a few hundred tokens, recall past work, catch up on other chats.",
   "author": {
     "name": "Harsh Baldaniya"

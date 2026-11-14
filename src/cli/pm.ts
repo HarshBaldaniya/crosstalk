@@ -40,6 +40,13 @@ export function pmCommand(bin: PackageManager | "npx", args: string[]): { cmd: s
   return { cmd: [bin, ...args.map((a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a))].join(" "), args: [], shell: true };
 }
 
+/** A `crosstalk` that only exists for one run: `npm create crosstalk`, npx, pnpm dlx, yarn dlx and
+ *  bunx put the package's own node_modules/.bin (with crosstalk-ai's commands in it) at the front of
+ *  the PATH while they run. That one is gone afterwards, so it doesn't count as installed. */
+export function temporary(file: string): boolean {
+  return /[\\/]node_modules[\\/]\.bin[\\/]|[\\/]_npx[\\/]|[\\/]dlx[\\/-]|[\\/]bunx-|[\\/]xfs-/i.test(file);
+}
+
 export interface OurCommand {
   /** Where `crosstalk` is on the PATH. */
   path: string;
@@ -51,7 +58,7 @@ export interface OurCommand {
  *  name). npm, yarn and bun link it into the package; pnpm, and every manager on Windows, write a
  *  small script that names the package. */
 export function ourCommand(found = findCommand("crosstalk")): OurCommand | undefined {
-  if (!found) return undefined;
+  if (!found || temporary(found)) return undefined;
   let where = "";
   try {
     where = fs.realpathSync(found);

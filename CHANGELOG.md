@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.2
+
+- `npm create crosstalk` now adds the `crosstalk` command. It used to mistake the temporary copy
+  that `npm create` (and npx, pnpm dlx, yarn dlx, bunx) puts on the PATH for an installed one, skip
+  the install, and then point to a `crosstalk` command that wasn't there.
+
 ## 0.0.1 (first public version)
 
 - **Tower**: every Claude Code, Codex and Gemini CLI chat as a card; connect chats so one gets the

@@ -2,7 +2,7 @@
   "name": "crosstalk",
   "displayName": "Crosstalk",
   "description": "See every Claude Code, Codex and Gemini CLI chat in one place, and let them share what they did. A map of your code for agents, ready-made commands, and your plan limits.",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "crosstalk-dev",
   "author": {
     "name": "Harsh Baldaniya"
