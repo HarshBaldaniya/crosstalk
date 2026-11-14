@@ -4,8 +4,10 @@
   "description": "A map of your code, the records of your other AI chats, and skills that use them.",
   "mcpServers": {
     "crosstalk": {
-      "command": "npx",
-      "args": ["-y", "crosstalk-ai@0.0.1", "mcp"]
+      "command": "node",
+      "args": [
+        "${extensionPath}${/}bin${/}mcp.cjs"
+      ]
     }
   },
   "contextFileName": "GEMINI.md"

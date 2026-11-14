@@ -8,4 +8,5 @@ out-test/
 docs/internal/
 .DS_Store
 npm-dist/
+npm-dist-create/
 *.tgz

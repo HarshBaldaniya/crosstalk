@@ -156,20 +156,44 @@ Pick the way that fits how you work. They all install the same thing, and you ca
 ### One command, for every agent
 
 ```bash
-npx crosstalk-ai setup
+npm create crosstalk
 ```
 
-Finds Claude Code, Codex and Gemini CLI on your computer and gives each one the Map tools, the
-commands, three skills and auto-sharing. Every settings file it touches is backed up first.
+The same line in Terminal, PowerShell and any Linux shell (`pnpm create crosstalk`, `yarn create
+crosstalk` and `bun create crosstalk` work too). It finds Claude Code, Codex and Gemini CLI on your
+computer and gives each one the Map tools, the commands, three skills and auto-sharing, and adds the
+`crosstalk` command. Every settings file it touches is backed up first.
+
+```text
+  Crosstalk 0.0.1  setting up your agents
+
+  ✓ Claude Code   tools · skills · auto-sharing
+  ✓ Codex         tools · skills · auto-sharing
+  ✓ Gemini CLI    tools · auto-sharing
+  ✓ crosstalk     the command, in any new terminal
+
+  Done. Restart open agent chats to pick it up.
+```
+
+After that, in any terminal:
 
 | Command | What it does |
 |---|---|
-| `crosstalk setup` | Set up every agent found (`--agents claude,codex`, `--no-sharing` to leave the hook off) |
+| `crosstalk` | Show what each agent has (and set up anything missing) |
 | `crosstalk doctor` | Check that everything works, with the exact fix for anything that doesn't |
 | `crosstalk update` | Move to the newest version and refresh every agent at once |
 | `crosstalk remove` | Take Crosstalk out of every agent (`--purge` also deletes its data) |
+| `crosstalk help` | Every command, including the Map's `find`, `outline` and `graph` |
 
-Install it for good with `npm install -g crosstalk-ai`, and `crosstalk` works in any terminal.
+Options for setup: `--agents claude,codex` for only some agents, `--no-sharing` to leave auto-sharing
+off, `--no-command` to skip the `crosstalk` command, `--verbose` for every file it changed.
+
+Without installing anything, `npx crosstalk-ai` runs the same thing (`npx crosstalk-ai doctor` and
+so on). If npm can't add global commands on your computer, use that.
+
+**Works on** macOS (Apple silicon and Intel), Windows 10 and 11, and Linux (x64 and Arm). Nothing is
+compiled for your computer: it is JavaScript and a WebAssembly parser, so it runs wherever Node.js
+20 or newer does.
 
 ### Claude Code plugin
 
@@ -200,7 +224,7 @@ npm run install:vscode     # builds, packages and installs into VS Code
 Reload VS Code afterwards (**Developer: Reload Window**). When the extension updates, it refreshes
 what it gave your agents by itself.
 
-**Requirements:** Node.js 20 or newer; at least one of [Claude Code](https://code.claude.com), Codex or
+**Requirements:** [Node.js](https://nodejs.org) 20 or newer; at least one of [Claude Code](https://code.claude.com), Codex or
 Gemini CLI; VS Code 1.95 or newer for the extension.
 
 ### What your agents get

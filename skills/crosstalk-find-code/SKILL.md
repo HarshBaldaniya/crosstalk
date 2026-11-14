@@ -16,7 +16,7 @@ Ask the map first. Use grep or read whole files only when the map has nothing.
 4. **New to the project?** `crosstalk_map` with no arguments: the commands, entry points and main parts.
 
 Without the tool (another agent, a terminal, CI), the same answers come from the command line:
-`node ~/.crosstalk/crosstalk.js find "<words>"`, and `outline`, `graph`, `overview`.
+`node "$HOME/.crosstalk/crosstalk.js" find "<words>"` (bash, zsh and PowerShell alike), and `outline`, `graph`, `overview`.
 
 The map is built by a parser on this computer and stays fresh as files are saved. It covers
 TypeScript, JavaScript, Python, Go, Rust, Java, C#, Ruby and PHP.

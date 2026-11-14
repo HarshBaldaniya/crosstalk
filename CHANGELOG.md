@@ -13,8 +13,10 @@
 - **Agent tools**: `crosstalk_map`, `crosstalk_flightlog` and `crosstalk_notes` over MCP.
 - A command-line tool, `~/.crosstalk/crosstalk.js`, for terminals and CI.
 - A getting-started walkthrough on VS Code's welcome page.
-- **One-command install**: `npx crosstalk-ai setup` sets up every agent found. `crosstalk doctor`
-  checks it, `crosstalk update` moves to the newest version, `crosstalk remove` takes it out.
+- **One command**: `npm create crosstalk` sets up every agent found and adds the `crosstalk`
+  command. Then `crosstalk` shows what each agent has, `crosstalk doctor` checks it, `crosstalk
+  update` moves to the newest version and `crosstalk remove` takes it out. `npx crosstalk-ai` does
+  the same without installing. The same on macOS, Windows and Linux.
 - **Used without being asked**: the tools carry instructions agents read at the start of a session,
   and three skills (`crosstalk-find-code`, `crosstalk-recall`, `crosstalk-catchup`) load when a task
   matches.

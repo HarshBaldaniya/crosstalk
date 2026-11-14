@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { claudePluginInstalled, doctor, installedVersion, newer, remove, setup, VERSION } from "../src/core/setup";
+import { spawnSync } from "node:child_process";
+import { agentSummary, claudePluginInstalled, doctor, installedVersion, needsSetup, newer, npmCommand, remove, setup, VERSION } from "../src/core/setup";
 import { installSkills, removeSkills, SKILLS, skillsDir, skillsState } from "../src/core/skills";
 import { agentStates } from "../src/core/toolkit";
 
@@ -105,4 +106,40 @@ test("versions compare as numbers", () => {
   assert.ok(newer("1.0.0", "0.9.9"));
   assert.ok(!newer("0.1.0", "0.1.0"));
   assert.ok(!newer("0.0.1", "0.0.2"));
+});
+
+test("the bare command knows when setup is needed, and the summary says what each agent has", async () => {
+  assert.ok(needsSetup(), "nothing set up yet");
+  await setup({ fromDir: dist, claudeCli: null, sharing: false });
+  assert.ok(!needsSetup(), "auto-sharing off is a choice, not something to fix");
+  const rows = agentSummary();
+  assert.deepEqual(rows.map((r) => r.id).sort(), ["claude", "codex", "gemini"]);
+  assert.ok(rows.every((r) => r.tools && !r.sharing));
+  assert.equal(rows.find((r) => r.id === "gemini")?.skills, null);
+  assert.equal(rows.find((r) => r.id === "codex")?.skills, true);
+  // A skill from an older version is something to fix.
+  fs.writeFileSync(path.join(skillsDir("codex"), SKILLS[0].name, "SKILL.md"), "old text");
+  assert.ok(needsSetup());
+  assert.match(doctor(undefined, "npx crosstalk-ai").find((c) => /older version/.test(c.what))?.fix ?? "", /^Run: npx crosstalk-ai$/);
+});
+
+test("npm and npx start the same way on macOS, Windows and Linux", () => {
+  const c = npmCommand("npm", ["--version"]);
+  const r = spawnSync(c.cmd, c.args, { encoding: "utf8", shell: c.shell, windowsHide: true, timeout: 60_000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout.trim(), /^\d+\.\d+\.\d+/);
+});
+
+test("the plugin's launcher runs the copy in ~/.crosstalk when it is this version or newer", () => {
+  const home = process.env.CROSSTALK_HOME!;
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(path.join(home, "crosstalk-mcp.js"), 'process.stdout.write("local copy")');
+  fs.writeFileSync(path.join(home, "version.json"), JSON.stringify({ version: VERSION }));
+  const r = spawnSync(process.execPath, [path.resolve("bin", "mcp.cjs")], { encoding: "utf8", env: { ...process.env, CROSSTALK_HOME: home }, timeout: 20_000 });
+  assert.equal(r.stdout, "local copy", r.stderr);
+  for (const f of [".claude-plugin/plugin.json", "gemini-extension.json"]) {
+    const s = JSON.parse(fs.readFileSync(f, "utf8")).mcpServers.crosstalk;
+    assert.equal(s.command, "node", `${f} starts node, never a bare npx (Windows can't)`);
+    assert.match(s.args[0], /bin.+mcp\.cjs$/);
+  }
 });

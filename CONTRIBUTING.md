@@ -46,12 +46,13 @@ One version lives in `package.json`, `.claude-plugin/plugin.json` and `gemini-ex
 ```bash
 npm run set-version -- 0.0.2   # sets it in all three and re-pins crosstalk-ai@0.0.2
 npm test
-npm run publish:npm             # builds npm-dist/ and publishes crosstalk-ai
+npm run publish:npm             # publishes crosstalk-ai, then create-crosstalk (npm create crosstalk)
 git commit -am "0.0.2" && git tag v0.0.2 && git push --follow-tags
 ```
 
-Publish to npm before pushing the tag: the plugin and the Gemini extension start the tools with
-`npx crosstalk-ai@<version>`, so that version has to exist. Check the plugin with
+Publish to npm before pushing the tag: the plugin and the Gemini extension start the tools through
+`bin/mcp.cjs`, which fetches `crosstalk-ai@<version>` when it isn't on the computer yet, so that
+version has to exist. `create-crosstalk` depends on the same version, so publish `crosstalk-ai` first. Check the plugin with
 `claude plugin validate .`.
 
 ## Style

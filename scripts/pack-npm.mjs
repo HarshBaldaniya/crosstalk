@@ -1,8 +1,10 @@
-// Puts together the npm package, crosstalk-ai: the command line (crosstalk setup | doctor | update |
+// Puts together the npm package, crosstalk-ai: the command line (`npx crosstalk-ai`, doctor, update,
 // remove, and the Map's find, outline, graph ...), the MCP server, the hook and the parser files.
 // The same files the VS Code extension carries, so both install exactly the same thing.
 //   npm run pack:npm      → npm-dist/ (and a .tgz to try with `npm install -g ./crosstalk-ai-*.tgz`)
 //   npm publish ./npm-dist --access public
+// and create-crosstalk (npm-dist-create/), a two-line wrapper so `npm create crosstalk` (and pnpm,
+// yarn and bun create) runs it: the plain name `crosstalk` on npm belongs to an older package.
 import { copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -39,13 +41,17 @@ your code, ready-made commands, skills, and shared records of your chats. No AI 
 leaves your computer.
 
 \`\`\`bash
-npx crosstalk-ai setup      # every agent found on this computer
-crosstalk doctor            # check everything works, with the fix for anything that doesn't
-crosstalk update            # move to the newest version and refresh every agent
-crosstalk remove            # take it all out again (--purge also deletes its data)
+npm create crosstalk         # set up every agent found, and add the crosstalk command
+crosstalk                    # what each agent has
+crosstalk doctor             # check everything works, with the fix for anything that doesn't
+crosstalk update             # move to the newest version and refresh every agent
+crosstalk remove             # take it all out again (--purge also deletes its data)
 \`\`\`
 
-After \`setup\`, your agents:
+The same on macOS (Apple silicon and Intel), Windows and Linux, with Node.js 20 or newer. Without
+installing anything: \`npx crosstalk-ai\`, \`npx crosstalk-ai doctor\` and so on.
+
+Once set up, your agents:
 
 - find code through the Map (\`crosstalk_map\`) before grepping, in a few hundred tokens;
 - read what your other chats did (\`crosstalk_flightlog\`) and leave notes for each other (\`crosstalk_notes\`);
@@ -61,3 +67,56 @@ MIT © Harsh Baldaniya
 `,
 );
 console.log(`npm-dist/ ready: ${pkg.name}@${pkg.version}`);
+
+const create = "npm-dist-create";
+rmSync(create, { recursive: true, force: true });
+mkdirSync(create);
+copyFileSync("LICENSE", join(create, "LICENSE"));
+writeFileSync(
+  join(create, "create.js"),
+  `#!/usr/bin/env node
+// \`npm create crosstalk\`: runs Crosstalk (the crosstalk-ai package) with whatever follows it.
+"use strict";
+const { spawnSync } = require("node:child_process");
+const r = spawnSync(process.execPath, [require.resolve("crosstalk-ai/crosstalk.js"), ...process.argv.slice(2)], { stdio: "inherit" });
+process.exit(r.status ?? 1);
+`,
+);
+writeFileSync(
+  join(create, "package.json"),
+  `${JSON.stringify(
+    {
+      name: "create-crosstalk",
+      version: root.version,
+      description: "npm create crosstalk: set up Claude Code, Codex and Gemini CLI with Crosstalk in one command.",
+      keywords: pkg.keywords,
+      homepage: pkg.homepage,
+      bugs: pkg.bugs,
+      repository: pkg.repository,
+      license: "MIT",
+      author: root.author,
+      bin: { "create-crosstalk": "create.js" },
+      files: ["create.js", "README.md", "LICENSE"],
+      engines: pkg.engines,
+      dependencies: { [pkg.name]: root.version },
+    },
+    null,
+    2,
+  )}\n`,
+);
+writeFileSync(
+  join(create, "README.md"),
+  `# create-crosstalk
+
+\`\`\`bash
+npm create crosstalk
+\`\`\`
+
+Sets up Claude Code, Codex and Gemini CLI with [Crosstalk](https://github.com/HarshBaldaniya/crosstalk) and adds the
+\`crosstalk\` command. Then: \`crosstalk doctor\`, \`crosstalk update\`, \`crosstalk remove\`. This package only starts
+[crosstalk-ai](https://www.npmjs.com/package/crosstalk-ai), where everything lives.
+
+MIT © Harsh Baldaniya
+`,
+);
+console.log(`${create}/ ready: create-crosstalk@${root.version}`);

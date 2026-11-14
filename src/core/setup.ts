@@ -11,7 +11,7 @@ import { agentStates, installToolkit, removeToolkit, type AgentId } from "./tool
 import { installSkills, removeSkills, SKILLS, skillsState, type SkillAgent } from "./skills";
 
 export const VERSION = __CROSSTALK_VERSION__;
-/** The npm package people install with `npx crosstalk-ai setup`. */
+/** The npm package: `npx crosstalk-ai` sets everything up. */
 export const NPM_PACKAGE = "crosstalk-ai";
 
 const FILES = ["crosstalk-mcp.js", "crosstalk-hook.js", "crosstalk.js"];
@@ -129,6 +129,9 @@ export async function remove(o: { purge?: boolean; claudeCli?: string | null } =
   return lines;
 }
 
+/** A path as people read it: ~ for the home folder. */
+const tilde = (p: string) => (p.startsWith(os.homedir()) ? `~${p.slice(os.homedir().length)}` : p);
+
 const agentName = (a: AgentId) => (a === "claude" ? "Claude" : a === "codex" ? "Codex" : "Gemini");
 
 // ---------------------------------------------------------------- doctor
@@ -141,7 +144,7 @@ export interface Check {
 }
 
 /** Everything that has to be true for Crosstalk to work, each with the fix when it isn't. */
-export function doctor(latest?: string): Check[] {
+export function doctor(latest?: string, self = "crosstalk"): Check[] {
   const checks: Check[] = [];
   const major = Number(process.versions.node.split(".")[0]);
   checks.push(major >= 20 ? { ok: true, what: `Node.js ${process.versions.node}` } : { ok: false, what: `Node.js ${process.versions.node} is too old`, fix: "Install Node.js 20 or newer." });
@@ -150,14 +153,14 @@ export function doctor(latest?: string): Check[] {
   const iv = installedVersion();
   checks.push(
     missing.length
-      ? { ok: false, what: `Missing in ${crosstalkHome()}: ${missing.join(", ")}`, fix: "Run: crosstalk setup" }
-      : { ok: true, what: `Crosstalk ${iv ?? "(version unknown)"} installed in ${crosstalkHome()}` },
+      ? { ok: false, what: `Missing in ${tilde(crosstalkHome())}: ${missing.join(", ")}`, fix: `Run: ${self}` }
+      : { ok: true, what: `Crosstalk ${iv ?? "(version unknown)"} installed in ${tilde(crosstalkHome())}` },
   );
-  if (latest && newer(latest, iv ?? VERSION)) checks.push({ ok: "warn", what: `Crosstalk ${latest} is out (you have ${iv ?? VERSION})`, fix: "Run: crosstalk update" });
+  if (latest && newer(latest, iv ?? VERSION)) checks.push({ ok: "warn", what: `Crosstalk ${latest} is out (you have ${iv ?? VERSION})`, fix: `Run: ${self} update` });
 
   const states = agentStates();
   const present = states.filter((a) => a.present);
-  if (!present.length) checks.push({ ok: false, what: "No Claude Code, Codex or Gemini CLI found", fix: "Install one of them, then run: crosstalk setup" });
+  if (!present.length) checks.push({ ok: false, what: "No Claude Code, Codex or Gemini CLI found", fix: `Install one of them, then run: ${self}` });
   const stale = new Set(staleHookTargets().map((t) => t.tool));
   const plugin = claudePluginInstalled();
   for (const a of present) {
@@ -165,19 +168,19 @@ export function doctor(latest?: string): Check[] {
     if (a.id === "claude" && plugin) {
       checks.push(
         a.tools
-          ? { ok: "warn", what: "Claude Code: has Crosstalk twice (the plugin and a setup entry)", fix: "Run: crosstalk remove, then crosstalk setup (the plugin stays)" }
+          ? { ok: "warn", what: "Claude Code: has Crosstalk twice (the plugin and a setup entry)", fix: `Run: ${self} remove, then ${self} (the plugin stays)` }
           : { ok: true, what: "Claude Code: tools and skills from the Crosstalk plugin" },
       );
     } else {
-      checks.push(a.tools ? { ok: true, what: `${name}: tools connected (crosstalk_map, crosstalk_flightlog, crosstalk_notes)` } : { ok: false, what: `${name}: tools not connected`, fix: `Run: crosstalk setup --agents ${a.id}` });
+      checks.push(a.tools ? { ok: true, what: `${name}: tools connected (crosstalk_map, crosstalk_flightlog, crosstalk_notes)` } : { ok: false, what: `${name}: tools not connected`, fix: `Run: ${self} setup --agents ${a.id}` });
     }
     if (a.id === "codex" || (a.id === "claude" && !plugin)) {
       const s = skillsState(a.id);
       checks.push(
         s.installed === 0
-          ? { ok: "warn", what: `${name}: no Crosstalk skills`, fix: "Run: crosstalk setup (agents then use the Map and past chats by themselves)" }
+          ? { ok: "warn", what: `${name}: no Crosstalk skills`, fix: `Run: ${self} (agents then use the Map and past chats by themselves)` }
           : s.current < s.installed
-            ? { ok: "warn", what: `${name}: skills from an older version`, fix: "Run: crosstalk setup" }
+            ? { ok: "warn", what: `${name}: skills from an older version`, fix: `Run: ${self}` }
             : { ok: true, what: `${name}: ${s.installed} skills` },
       );
     }
@@ -186,14 +189,14 @@ export function doctor(latest?: string): Check[] {
       const on = isToolConnected(t);
       checks.push(
         !on
-          ? { ok: "warn", what: `${name}: auto-sharing off`, fix: `Run: crosstalk setup --agents ${a.id} (connected chats then update each other)` }
+          ? { ok: "warn", what: `${name}: auto-sharing off`, fix: `Run: ${self} setup --agents ${a.id} (connected chats then update each other)` }
           : stale.has(t.tool)
-            ? { ok: false, what: `${name}: auto-sharing hook points at a Node.js that is gone`, fix: "Run: crosstalk setup" }
+            ? { ok: false, what: `${name}: auto-sharing hook points at a Node.js that is gone`, fix: `Run: ${self}` }
             : { ok: true, what: `${name}: auto-sharing on` },
       );
     }
   }
-  if (!fs.existsSync(installedHookPath()) && present.length) checks.push({ ok: false, what: "The hook script is missing", fix: "Run: crosstalk setup" });
+  if (!fs.existsSync(installedHookPath()) && present.length) checks.push({ ok: false, what: "The hook script is missing", fix: `Run: ${self}` });
   return checks;
 }
 
@@ -240,4 +243,63 @@ export async function latestVersion(o: { force?: boolean; timeoutMs?: number } =
     // A read-only home folder: ask again next time.
   }
   return latest;
+}
+
+// ---------------------------------------------------------------- status
+
+export interface AgentSummary {
+  id: AgentId;
+  name: string;
+  tools: boolean;
+  /** Through the Claude Code plugin rather than setup. */
+  plugin: boolean;
+  /** null: this agent takes no skills from setup (Gemini CLI, or Claude through the plugin). */
+  skills: boolean | null;
+  sharing: boolean;
+}
+
+/** One line's worth per agent found: what Crosstalk gives it right now. */
+export function agentSummary(): AgentSummary[] {
+  const plugin = claudePluginInstalled();
+  return agentStates()
+    .filter((a) => a.present)
+    .map((a) => {
+      const viaPlugin = a.id === "claude" && plugin;
+      const t = hookTargets().find((h) => h.tool === agentName(a.id));
+      const skills = a.id === "gemini" || viaPlugin ? null : skillsState(a.id).installed > 0;
+      return { id: a.id, name: a.name, tools: a.tools || viaPlugin, plugin: viaPlugin, skills, sharing: !!t && isToolConnected(t) };
+    });
+}
+
+/** Whether running setup would change anything that matters: files missing or from an older
+ *  version, an agent without the tools, skills out of date, or a hook pointing at a gone Node.js.
+ *  Choices the person made (auto-sharing off, no skills) are not things to fix. */
+export function needsSetup(): boolean {
+  const iv = installedVersion();
+  if (!iv || newer(VERSION, iv)) return true;
+  if (FILES.some((f) => !fs.existsSync(crosstalkFile(f)))) return true;
+  const plugin = claudePluginInstalled();
+  for (const a of agentStates().filter((x) => x.present)) {
+    if (!a.tools && !(a.id === "claude" && plugin)) return true;
+    if (a.id !== "gemini" && !(a.id === "claude" && plugin)) {
+      const s = skillsState(a.id);
+      if (s.current < s.installed) return true;
+    }
+  }
+  return staleHookTargets().length > 0;
+}
+
+// ---------------------------------------------------------------- npm, the same on every system
+
+/** How to run npm or npx without a shell: through the npm that ships next to this Node.js (an
+ *  .cmd can't be started directly on Windows). Falls back to the command on the PATH. */
+export function npmCommand(bin: "npm" | "npx", args: string[]): { cmd: string; args: string[]; shell: boolean } {
+  const dir = path.dirname(process.execPath);
+  const cli = `${bin}-cli.js`;
+  for (const p of [path.join(dir, "node_modules", "npm", "bin", cli), path.join(dir, "..", "lib", "node_modules", "npm", "bin", cli)]) {
+    if (fs.existsSync(p)) return { cmd: process.execPath, args: [p, ...args], shell: false };
+  }
+  const win = process.platform === "win32";
+  // On Windows the PATH has npx.cmd, which only a shell can start: pass one line, already quoted.
+  return win ? { cmd: [bin, ...args.map((a) => (/[\s"]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a))].join(" "), args: [], shell: true } : { cmd: bin, args, shell: false };
 }

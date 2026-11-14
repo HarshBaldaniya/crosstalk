@@ -268,7 +268,7 @@
     "install:vscode": "npm run build && vsce package --no-dependencies && node scripts/install-vscode.mjs",
     "bench:map": "esbuild scripts/codemap-bench.ts --bundle --platform=node --format=cjs --outfile=out-test/codemap-bench.js --log-level=warning && node out-test/codemap-bench.js",
     "pack:npm": "npm run build && node scripts/pack-npm.mjs",
-    "publish:npm": "npm run pack:npm && npm publish ./npm-dist --access public",
+    "publish:npm": "npm run pack:npm && npm publish ./npm-dist --access public && npm publish ./npm-dist-create --access public",
     "set-version": "node scripts/set-version.mjs"
   },
   "dependencies": {

@@ -2,15 +2,26 @@
   "name": "crosstalk",
   "version": "0.0.1",
   "description": "A map of your code, the records of your other AI chats, and skills that use them: find code in a few hundred tokens, recall past work, catch up on other chats.",
-  "author": { "name": "Harsh Baldaniya" },
+  "author": {
+    "name": "Harsh Baldaniya"
+  },
   "homepage": "https://github.com/HarshBaldaniya/crosstalk#readme",
   "repository": "https://github.com/HarshBaldaniya/crosstalk",
   "license": "MIT",
-  "keywords": ["code-map", "mcp", "skills", "codex", "gemini-cli", "chat-history"],
+  "keywords": [
+    "code-map",
+    "mcp",
+    "skills",
+    "codex",
+    "gemini-cli",
+    "chat-history"
+  ],
   "mcpServers": {
     "crosstalk": {
-      "command": "npx",
-      "args": ["-y", "crosstalk-ai@0.0.1", "mcp"]
+      "command": "node",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/bin/mcp.cjs"
+      ]
     }
   }
 }
