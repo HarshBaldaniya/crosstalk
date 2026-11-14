@@ -39,6 +39,21 @@ when `CROSSTALK_TEST_DIR` names a folder that has some; otherwise they are skipp
 | `src/vscode/` | The extension: the sidebar, the board pages and the services |
 | `webview-ui/` | The pages (React): Tower, Fuel, Map, Commands, the sidebar |
 
+## Releasing
+
+One version lives in `package.json`, `.claude-plugin/plugin.json` and `gemini-extension.json`.
+
+```bash
+npm run set-version -- 0.0.2   # sets it in all three and re-pins crosstalk-ai@0.0.2
+npm test
+npm run publish:npm             # builds npm-dist/ and publishes crosstalk-ai
+git commit -am "0.0.2" && git tag v0.0.2 && git push --follow-tags
+```
+
+Publish to npm before pushing the tag: the plugin and the Gemini extension start the tools with
+`npx crosstalk-ai@<version>`, so that version has to exist. Check the plugin with
+`claude plugin validate .`.
+
 ## Style
 
 - Plain words in the interface: say what a thing does for the person, not how it works.

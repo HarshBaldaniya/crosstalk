@@ -7,3 +7,5 @@ out-test/
 # Private planning notes: kept on this computer, never published
 docs/internal/
 .DS_Store
+npm-dist/
+*.tgz

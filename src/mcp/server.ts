@@ -15,7 +15,16 @@ import { allCommands, renderCommand, userLibraryDir, type LibraryCommand } from 
 
 const root = process.env.CROSSTALK_ROOT || process.cwd();
 
-const server = new McpServer({ name: "crosstalk", version: "0.1.0" });
+// Shown to the agent at the start of every session, so it reaches for Crosstalk without being told.
+// Short on purpose (the agent reads it in every chat); the most useful line first.
+const INSTRUCTIONS = [
+  "Crosstalk gives this project a map of its code and the records of the person's other AI chats on this computer.",
+  "- To find code (where something is defined, what calls or imports it, how a folder is laid out), call crosstalk_map before grep, glob or reading whole files: find for a name or plain words, outline for a file or folder, graph for who uses what, no arguments for an overview. It answers in a few hundred tokens.",
+  "- When the person refers to earlier work or another chat (what was done, which chat changed something, what happened while they were away), call crosstalk_flightlog: with query to search every chat, or with chat to read one.",
+  "- crosstalk_notes holds notes chats left for this project; read them before working in an unfamiliar area, and save one when you learn something the next chat should know.",
+].join("\n");
+
+const server = new McpServer({ name: "crosstalk", version: __CROSSTALK_VERSION__ }, { instructions: INSTRUCTIONS });
 
 const text = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) });
 

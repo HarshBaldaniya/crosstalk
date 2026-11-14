@@ -12,13 +12,26 @@
 //   node crosstalk.js backup <folder>       copy session logs to a folder
 //   node crosstalk.js restore <folder>      bring them back on this computer
 //   node crosstalk.js mcp                   run the MCP server (for an agent's config)
+//   crosstalk setup | update | doctor | remove | version   install, keep current, check, take away
+import { spawnSync } from "node:child_process";
+import * as fs from "node:fs";
 import * as path from "node:path";
+import { crosstalkHome } from "../core/paths";
 import { CodeMap } from "../codemap/index";
 import { backUp, restore } from "../core/backup";
 import { renderTokenReport, tokenReport } from "../core/tokens";
 import { allCommands, suggest } from "../library/index";
+import { doctor, latestVersion, newer, NPM_PACKAGE, remove, setup, VERSION } from "../core/setup";
+import type { AgentId } from "../core/toolkit";
 
-const HELP = `Crosstalk: a code map, commands and session logs for every AI agent.
+const HELP = `Crosstalk: every Claude Code, Codex and Gemini CLI chat in one place, a map of your code, and commands for every agent.
+
+  crosstalk setup                 set up every agent on this computer (tools, skills, auto-sharing)
+                                  --agents claude,codex,gemini   only these   --no-sharing   no hook
+  crosstalk doctor                check that everything works, and say how to fix what doesn't
+  crosstalk update                move to the newest version and refresh every agent
+  crosstalk remove                take Crosstalk out of every agent (--purge also deletes its data)
+  crosstalk version               this version, and whether a newer one is out
 
   crosstalk map [folder]          build or refresh the code map (about 1 MB, no AI)
   crosstalk find <words>          where something is: ranked, with path:start-end
@@ -32,7 +45,9 @@ const HELP = `Crosstalk: a code map, commands and session logs for every AI agen
   crosstalk restore <folder>      bring them back (merges; never loses anything)
   crosstalk mcp                   run the MCP server, for an agent's settings
 
-Options: --in <folder> (default: this folder), --hops 2, --limit N`;
+Options: --in <folder> (default: this folder), --hops 2, --limit N
+
+First time: npx ${NPM_PACKAGE} setup`;
 
 function option(args: string[], name: string): string | undefined {
   const i = args.indexOf(name);
@@ -119,6 +134,60 @@ export async function main(argv: string[]): Promise<number> {
       if (!process.env.CROSSTALK_ROOT) process.env.CROSSTALK_ROOT = folder;
       require(path.join(__dirname, "crosstalk-mcp.js"));
       return -1;
+    case "setup": {
+      const agents = option(args, "--agents")?.split(",").map((a) => a.trim().toLowerCase()).filter((a): a is AgentId => a === "claude" || a === "codex" || a === "gemini");
+      const r = await setup({ fromDir: __dirname, agents, sharing: !argv.includes("--no-sharing"), skills: !argv.includes("--no-skills") });
+      for (const l of r.lines) out(`  ${l}`);
+      if (r.codexTrust) out("\n  One step left for Codex: type /hooks in Codex and trust Crosstalk's hook.");
+      if (r.agents.length) out(`\n  Done. Restart open agent chats to pick it up. Check any time with: crosstalk doctor`);
+      return r.agents.length ? 0 : 1;
+    }
+    case "doctor": {
+      const checks = doctor(await latestVersion({ timeoutMs: 2500 }));
+      for (const c of checks) {
+        out(`  ${c.ok === true ? "✓" : c.ok === "warn" ? "!" : "✗"} ${c.what}`);
+        if (c.ok !== true && c.fix) out(`      ${c.fix}`);
+      }
+      const bad = checks.filter((c) => c.ok === false).length;
+      out(bad ? `\n  ${bad} thing${bad === 1 ? "" : "s"} to fix.` : "\n  Everything works.");
+      return bad ? 1 : 0;
+    }
+    case "update": {
+      const latest = await latestVersion({ force: true, timeoutMs: 6000 });
+      if (!latest) {
+        out(`  Couldn't reach npm. Try again online, or run: npx ${NPM_PACKAGE}@latest setup`);
+        return 1;
+      }
+      if (!newer(latest, VERSION)) {
+        // Already the newest: refresh every agent from this copy, in case anything drifted.
+        const r = await setup({ fromDir: __dirname, sharing: true });
+        out(`  Crosstalk ${VERSION} is the newest. Every agent refreshed (${r.agents.length}).`);
+        return 0;
+      }
+      out(`  Updating Crosstalk ${VERSION} → ${latest} ...`);
+      const win = process.platform === "win32";
+      // Installed with npm -g: update that copy; otherwise run the new version's setup through npx.
+      const global = /[\\/]node_modules[\\/]crosstalk-ai[\\/]/.test(__dirname) && !/[\\/]_npx[\\/]/.test(__dirname);
+      if (global) {
+        const g = spawnSync("npm", ["install", "-g", `${NPM_PACKAGE}@${latest}`], { stdio: "inherit", shell: win });
+        if (g.status !== 0) return g.status ?? 1;
+      }
+      const r = spawnSync("npx", ["-y", `${NPM_PACKAGE}@${latest}`, "setup"], { stdio: "inherit", shell: win });
+      return r.status ?? 1;
+    }
+    case "remove": {
+      for (const l of await remove({ purge: argv.includes("--purge") })) out(`  ${l}`);
+      out("\n  Restart open agent chats to finish. If you also use the VS Code extension, uninstall it in VS Code.");
+      return 0;
+    }
+    case "version":
+    case "--version":
+    case "-v": {
+      out(`crosstalk ${VERSION}`);
+      const latest = await latestVersion({ timeoutMs: 2500 });
+      if (latest && newer(latest, VERSION)) out(`${latest} is out: crosstalk update`);
+      return 0;
+    }
     case undefined:
     case "help":
     case "--help":
@@ -139,7 +208,10 @@ export async function main(argv: string[]): Promise<number> {
 if (require.main === module) {
   main(process.argv.slice(2)).then(
     (code) => {
-      if (code >= 0) process.exit(code);
+      if (code >= 0) {
+        updateNote(process.argv[2]);
+        process.exit(code);
+      }
     },
     (err) => {
       console.error(err instanceof Error ? err.message : String(err));
@@ -147,3 +219,16 @@ if (require.main === module) {
     },
   );
 }
+
+/** After an everyday command in a terminal: one line when a newer version is out. It reads only the
+ *  answer kept from the last daily check, so a command is never slowed down by a network call. */
+function updateNote(cmd: string | undefined): void {
+  if (!process.stderr.isTTY || !cmd || ["mcp", "update", "version", "--version", "-v", "doctor", "setup"].includes(cmd)) return;
+  try {
+    const c = JSON.parse(fs.readFileSync(path.join(crosstalkHome(), "update-check.json"), "utf8")) as { latest?: string };
+    if (c.latest && newer(c.latest, VERSION)) process.stderr.write(`\nCrosstalk ${c.latest} is out (you have ${VERSION}): crosstalk update\n`);
+  } catch {
+    // No check yet.
+  }
+}
+

@@ -151,7 +151,44 @@ stay in the agent's own files.
 
 ## Install
 
-Crosstalk is not on the VS Code Marketplace yet. Install it from source:
+Pick the way that fits how you work. They all install the same thing, and you can use more than one.
+
+### One command, for every agent
+
+```bash
+npx crosstalk-ai setup
+```
+
+Finds Claude Code, Codex and Gemini CLI on your computer and gives each one the Map tools, the
+commands, three skills and auto-sharing. Every settings file it touches is backed up first.
+
+| Command | What it does |
+|---|---|
+| `crosstalk setup` | Set up every agent found (`--agents claude,codex`, `--no-sharing` to leave the hook off) |
+| `crosstalk doctor` | Check that everything works, with the exact fix for anything that doesn't |
+| `crosstalk update` | Move to the newest version and refresh every agent at once |
+| `crosstalk remove` | Take Crosstalk out of every agent (`--purge` also deletes its data) |
+
+Install it for good with `npm install -g crosstalk-ai`, and `crosstalk` works in any terminal.
+
+### Claude Code plugin
+
+```text
+/plugin install crosstalk --marketplace HarshBaldaniya/crosstalk
+```
+
+On older Claude Code: `/plugin marketplace add HarshBaldaniya/crosstalk`, then `/plugin install crosstalk@crosstalk`.
+To get updates by themselves, turn on auto-update for the marketplace in `/plugin` → Marketplaces.
+
+### Gemini CLI extension
+
+```bash
+gemini extensions install https://github.com/HarshBaldaniya/crosstalk --auto-update
+```
+
+### VS Code extension: the Tower, Fuel, the Map and Commands
+
+Not on the Marketplace yet. Install it from source:
 
 ```bash
 git clone https://github.com/HarshBaldaniya/crosstalk.git
@@ -160,13 +197,20 @@ npm install
 npm run install:vscode     # builds, packages and installs into VS Code
 ```
 
-Reload VS Code afterwards (**Developer: Reload Window**).
+Reload VS Code afterwards (**Developer: Reload Window**). When the extension updates, it refreshes
+what it gave your agents by itself.
 
-**Requirements**
+**Requirements:** Node.js 20 or newer; at least one of [Claude Code](https://code.claude.com), Codex or
+Gemini CLI; VS Code 1.95 or newer for the extension.
 
-- VS Code 1.95 or newer (also works in editors built on VS Code)
-- Node.js 22 or newer
-- At least one of [Claude Code](https://code.claude.com), Codex or Gemini CLI, signed in as usual
+### What your agents get
+
+- **Instructions with the tools**, shown at the start of every session, so agents reach for the Map
+  before grepping and read other chats' records when you mention earlier work, without being asked.
+- **Three skills** they use by themselves when a task matches: `crosstalk-find-code`,
+  `crosstalk-recall` and `crosstalk-catchup`.
+- **The commands**, for when you want one by hand: `/crosstalk:review` in Claude Code, `/prompts:review`
+  in Codex, `/review` in Gemini CLI.
 
 ## Quick start
 

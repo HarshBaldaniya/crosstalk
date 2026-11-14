@@ -89,15 +89,40 @@ export const runCli: Runner = (cmd, args) =>
   });
 
 async function addToClaude(node: string, claudeCli: string | undefined, run: Runner): Promise<string> {
-  if (!claudeCli) return "Claude Code: its command isn't on this computer's PATH; run `claude mcp add crosstalk --scope user -- node ~/.crosstalk/crosstalk-mcp.js` once.";
+  if (!claudeCli) {
+    // No `claude` on PATH (a desktop app or IDE install): write the same user-scope entry it would,
+    // after a backup. Claude Code reads it when its next chat starts.
+    editClaudeJson((servers) => {
+      servers[SERVER] = { type: "stdio", command: node, args: [mcpServerPath()], env: {} };
+    });
+    return `Claude Code: tools and ${builtinCommands().length} commands added.`;
+  }
   // Through Claude's own command: it owns ~/.claude.json and writes it safely while it runs.
   await run(claudeCli, ["mcp", "remove", SERVER, "--scope", "user"]);
   const r = await run(claudeCli, ["mcp", "add", SERVER, "--scope", "user", "--", node, mcpServerPath()]);
   return r.ok ? `Claude Code: tools and ${builtinCommands().length} commands added (as /mcp__crosstalk__review and so on).` : `Claude Code: couldn't add the tools (${r.out.slice(0, 200)}).`;
 }
 
+/** Changes Claude Code's user-scope MCP servers in ~/.claude.json, keeping everything else in it. */
+function editClaudeJson(change: (servers: Record<string, unknown>) => void): void {
+  const file = claudeJsonPath();
+  const data = readJsonFile<Record<string, unknown> & { mcpServers?: Record<string, unknown> }>(file) ?? {};
+  if (fs.existsSync(file)) backup(file);
+  const servers = { ...(data.mcpServers ?? {}) };
+  change(servers);
+  data.mcpServers = servers;
+  writeFileAtomic(file, `${JSON.stringify(data, null, 2)}\n`);
+}
+
 async function removeFromClaude(claudeCli: string | undefined, run: Runner): Promise<string> {
-  if (!claudeCli) return "Claude Code: nothing removed (its command isn't on PATH).";
+  if (!claudeCli) {
+    let had = false;
+    editClaudeJson((servers) => {
+      had = SERVER in servers;
+      delete servers[SERVER];
+    });
+    return had ? "Claude Code: tools removed." : "Claude Code: no Crosstalk tools to remove.";
+  }
   const r = await run(claudeCli, ["mcp", "remove", SERVER, "--scope", "user"]);
   return r.ok ? "Claude Code: tools removed." : "Claude Code: no Crosstalk tools to remove.";
 }

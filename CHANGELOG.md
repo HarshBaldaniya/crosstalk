@@ -13,3 +13,10 @@
 - **Agent tools**: `crosstalk_map`, `crosstalk_flightlog` and `crosstalk_notes` over MCP.
 - A command-line tool, `~/.crosstalk/crosstalk.js`, for terminals and CI.
 - A getting-started walkthrough on VS Code's welcome page.
+- **One-command install**: `npx crosstalk-ai setup` sets up every agent found. `crosstalk doctor`
+  checks it, `crosstalk update` moves to the newest version, `crosstalk remove` takes it out.
+- **Used without being asked**: the tools carry instructions agents read at the start of a session,
+  and three skills (`crosstalk-find-code`, `crosstalk-recall`, `crosstalk-catchup`) load when a task
+  matches.
+- **Claude Code plugin** and **Gemini CLI extension**, both installed from this repository and kept
+  current by the agent itself.

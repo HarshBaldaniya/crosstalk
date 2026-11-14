@@ -1,0 +1,14 @@
+{
+  "name": "crosstalk",
+  "description": "Crosstalk for Claude Code: a map of your code, your other chats' records, and skills that use them.",
+  "owner": { "name": "Harsh Baldaniya" },
+  "plugins": [
+    {
+      "name": "crosstalk",
+      "source": "./",
+      "description": "Find code through a map of the project, recall what earlier chats did, and catch up on other chats. No AI of its own; nothing leaves your computer.",
+      "category": "development",
+      "tags": ["code-map", "mcp", "skills"]
+    }
+  ]
+}

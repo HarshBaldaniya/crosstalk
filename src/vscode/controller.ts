@@ -17,6 +17,8 @@ import type { BoardTab, ConnectionView, FromWebview, ModelOption, ToWebview, Too
 import { CodeMap } from "../codemap/index";
 import { codeHits, codeMapView, codeModuleView, knownProjects, libraryView } from "./pages";
 import type { RunsService } from "./runs-service";
+import { claudePluginInstalled, installFiles } from "../core/setup";
+import { installSkills, removeSkills, skillsState } from "../core/skills";
 import { allCommands, STARTER_DESCRIPTION, userLibraryDir } from "../library/index";
 
 /** Folders picked with "Map another folder", newest first. */
@@ -1378,8 +1380,13 @@ export class Controller implements vscode.Disposable {
       fs.mkdirSync(crosstalkHome(), { recursive: true });
       fs.copyFileSync(path.join(this.ctx.extensionPath, "dist", "crosstalk-hook.js"), path.join(crosstalkHome(), "crosstalk-hook.js"));
       // Crosstalk's tools (notes, session records), once added, stay as new as the extension.
-      if (fs.existsSync(path.join(crosstalkHome(), "crosstalk-mcp.js"))) this.copyTools();
+      if (fs.existsSync(path.join(crosstalkHome(), "crosstalk-mcp.js"))) installFiles(path.join(this.ctx.extensionPath, "dist"));
       refreshCodexPrompts();
+      // Skills, once added, are rewritten when the extension brings newer ones.
+      for (const a of ["claude", "codex"] as const) {
+        const s = skillsState(a);
+        if (s.installed && s.current < s.installed) installSkills([a]);
+      }
       // A hook that names a node no longer there (an nvm version removed) is rewritten with today's.
       const stale = staleHookTargets();
       if (stale.length) {
@@ -1454,19 +1461,6 @@ export class Controller implements vscode.Disposable {
     for (const t of hookTargets()) if (t.present()) disconnect(t.file);
     this.toast("Connected chats stop updating each other.", "ok", undefined, { title: "Auto-sharing off", icon: "pause" });
     this.refreshSoon(0);
-  }
-
-  /** The MCP server and the code map's parser files, copied to ~/.crosstalk where every agent can run them. */
-  private copyTools(): string {
-    const target = path.join(crosstalkHome(), "crosstalk-mcp.js");
-    fs.mkdirSync(path.join(crosstalkHome(), "wasm"), { recursive: true });
-    fs.copyFileSync(path.join(this.ctx.extensionPath, "dist", "crosstalk-mcp.js"), target);
-    // The command line sits next to it: `node ~/.crosstalk/crosstalk.js find ...` on any computer.
-    const cli = path.join(this.ctx.extensionPath, "dist", "crosstalk.js");
-    if (fs.existsSync(cli)) fs.copyFileSync(cli, path.join(crosstalkHome(), "crosstalk.js"));
-    const wasm = path.join(this.ctx.extensionPath, "dist", "wasm");
-    for (const f of fs.existsSync(wasm) ? fs.readdirSync(wasm) : []) fs.copyFileSync(path.join(wasm, f), path.join(crosstalkHome(), "wasm", f));
-    return target;
   }
 
   // ---- the Code and Library pages ----
@@ -1565,15 +1559,19 @@ export class Controller implements vscode.Disposable {
     const what = picks.map((p) => p.label).join(", ");
     const ok = await vscode.window.showInformationMessage(
       `Add Crosstalk to ${what}?`,
-      { modal: true, detail: "Each agent's settings are backed up first. Claude Code: added through its own `claude mcp add`. Codex: a [mcp_servers.crosstalk] table in config.toml, and the commands as prompt files. Gemini CLI: an mcpServers entry in settings.json. Remove it any time with \"Crosstalk: Remove the toolkit\"." },
+      { modal: true, detail: "Each agent's settings are backed up first. Claude Code: added through its own `claude mcp add`, plus three skills in ~/.claude/skills. Codex: a [mcp_servers.crosstalk] table in config.toml, the commands as prompt files, and the skills in ~/.agents/skills. Gemini CLI: an mcpServers entry in settings.json. Remove it any time with \"Crosstalk: Remove the toolkit\"." },
       "Add",
     );
     if (ok !== "Add") return;
-    this.copyTools();
-    const lines = await installToolkit(
-      picks.map((p) => p.id),
-      { node: findNode(), claudeCli: findClaude() },
-    );
+    installFiles(path.join(this.ctx.extensionPath, "dist"));
+    // The Claude Code plugin, when installed, already gives Claude the tools and skills.
+    const viaPlugin = claudePluginInstalled();
+    const ids = picks.map((p) => p.id).filter((a) => !(a === "claude" && viaPlugin));
+    const lines = await installToolkit(ids, { node: findNode(), claudeCli: findClaude() });
+    if (viaPlugin && picks.some((p) => p.id === "claude")) lines.unshift("Claude Code: the Crosstalk plugin already gives it the tools.");
+    // Skills let the agent reach for the Map and past chats by itself.
+    const skillAgents = ids.filter((a): a is "claude" | "codex" => a === "claude" || a === "codex");
+    if (skillAgents.length) installSkills(skillAgents);
     void vscode.window.showInformationMessage(`${lines.join(" ")} Start a new chat to use them.`);
   }
 
@@ -1589,6 +1587,7 @@ export class Controller implements vscode.Disposable {
     );
     if (!picks?.length) return;
     const lines = await removeToolkit(picks.map((p) => p.id), { claudeCli: findClaude() });
+    removeSkills(picks.map((p) => p.id).filter((a): a is "claude" | "codex" => a === "claude" || a === "codex"));
     void vscode.window.showInformationMessage(lines.join(" "));
   }
 

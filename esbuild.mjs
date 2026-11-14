@@ -7,11 +7,13 @@
 //   dist/wasm/          the code map's parser (tree-sitter runtime and grammars)
 // `--tests` instead builds test/*.test.ts into out-test/ for `node --test`.
 import { build, context } from "esbuild";
-import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 
 const watch = process.argv.includes("--watch");
+// The version every piece reports (doctor, update, the MCP server), from package.json.
+const VERSION = JSON.parse(readFileSync("package.json", "utf8")).version;
 const tests = process.argv.includes("--tests");
 
 // The Agent SDK is an ES module that reads `import.meta.url`; in a CommonJS
@@ -24,7 +26,7 @@ const node = {
   sourcemap: watch || tests,
   logLevel: "info",
   banner: { js: 'const __crosstalk_import_meta_url = require("url").pathToFileURL(__filename).href;' },
-  define: { "import.meta.url": "__crosstalk_import_meta_url" },
+  define: { "import.meta.url": "__crosstalk_import_meta_url", __CROSSTALK_VERSION__: JSON.stringify(VERSION) },
   // The Library's commands are Markdown files, bundled as text.
   loader: { ".md": "text" },
 };
@@ -42,7 +44,8 @@ const configs = tests
       { ...node, entryPoints: ["src/extension.ts"], outfile: "dist/extension.js", external: ["vscode"] },
       { ...node, entryPoints: ["src/hook/crosstalk-hook.ts"], outfile: "dist/crosstalk-hook.js" },
       { ...node, entryPoints: ["src/mcp/server.ts"], outfile: "dist/crosstalk-mcp.js" },
-      { ...node, entryPoints: ["src/cli/main.ts"], outfile: "dist/crosstalk.js" },
+      // The command line runs as `crosstalk ...` once installed from npm, so it starts with a shebang.
+      { ...node, entryPoints: ["src/cli/main.ts"], outfile: "dist/crosstalk.js", banner: { js: "#!/usr/bin/env node\n" + node.banner.js } },
       {
         bundle: true,
         platform: "browser",
